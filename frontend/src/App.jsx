@@ -142,7 +142,7 @@ function App() {
   );
   if (user?.role === "departmentHead" && !showAssistant) return (
     <>
-      <HeadWorkspace user={user} onLogout={signOut} onOpenAssistant={() => setShowAssistant(true)} />
+      <HeadWorkspace user={user} onLogout={signOut} />
       {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
     </>
   );

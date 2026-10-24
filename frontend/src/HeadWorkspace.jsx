@@ -81,7 +81,7 @@ function StaffForm({ department, staff, defaultRole, onClose, onSaved }) {
   );
 }
 
-export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
+export default function HeadWorkspace({ user, onLogout }) {
   const { language, t } = useLanguage();
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState("");
@@ -89,8 +89,8 @@ export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
   const [activeRole, setActiveRole] = useState("governmentEmployee");
   const [editingStaff, setEditingStaff] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [activeView, setActiveView] = useState("dashboard");
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [activeView, setActiveView] = useState("chat");
+  const [showNavigation, setShowNavigation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,12 +159,17 @@ export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
   const filteredVisibleStaff = visibleStaff.filter((account) => matchingStaff.some((matchingAccount) => matchingAccount._id === account._id));
   const employeeShare = staff.length ? employeeCount / staff.length * 100 : 0;
   const recentStaff = [...matchingStaff].slice(-4).reverse();
+  const promptHistory = assistantMessages
+    .map((message, index) => ({ ...message, index }))
+    .filter((message) => message.role === "user" && message.content.trim())
+    .slice(-12)
+    .reverse();
   const userInitials = user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   function openCreate(role) {
     setActiveRole(role);
     setEditingStaff(null);
-    setShowAddMenu(false);
+    setShowNavigation(false);
     setActiveView("members");
     if (department) setShowForm(true);
     else setError(t("head.noDepartmentError"));
@@ -299,37 +304,46 @@ export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
 
   return (
     <main className="staff-workspace head-workspace">
-      <aside className="head-sidebar">
-        <a className="head-sidebar-brand" href="/" aria-label="SuchnaSetu"><img src="/logo-mark.png" alt="SuchnaSetu" /></a>
-        <nav className="head-sidebar-nav" aria-label={t("head.workspace")}>
-          <button className={activeView === "dashboard" ? "head-side-link active" : "head-side-link"} type="button" aria-label={t("head.dashboard")} title={t("head.dashboard")} onClick={() => setActiveView("dashboard")}><span aria-hidden="true">▦</span></button>
-          <button className={activeView === "members" ? "head-side-link active" : "head-side-link"} type="button" aria-label={t("head.members")} title={t("head.members")} onClick={() => setActiveView("members")}><span aria-hidden="true">♧</span></button>
-          <button className="head-side-link head-assistant-nav-link" type="button" aria-label={t("assistant.name")} title={t("assistant.name")} onClick={onOpenAssistant}><span aria-hidden="true">✦</span></button>
-          <button className="head-side-link" type="button" aria-label={t("assistant.help")} title={t("assistant.help")} onClick={() => setShowAssistantHelp((current) => !current)}><span aria-hidden="true">?</span></button>
-        </nav>
-        <div className="head-sidebar-bottom">
-          <span className="head-sidebar-initials" aria-label={user.name}>{userInitials}</span>
-          <button className="head-side-link head-side-signout" type="button" aria-label={t("common.signOut")} title={t("common.signOut")} onClick={onLogout}><span aria-hidden="true">⇥</span></button>
-        </div>
-      </aside>
       <div className="head-main">
-      <header className="head-topbar">
-        <div className="head-topbar-spacer" />
-        <div className="add-member-menu head-add-member-menu">
-          <button className="staff-primary nav-add-button" type="button" aria-expanded={showAddMenu} aria-haspopup="menu" onClick={() => setShowAddMenu((current) => !current)}>{t("head.add")}</button>
-          {showAddMenu && <div className="add-member-options" role="menu"><button type="button" role="menuitem" onClick={() => openCreate("governmentEmployee")}>{t("login.employee")}</button><button type="button" role="menuitem" onClick={() => openCreate("smartCityWorker")}>{t("login.developer")}</button></div>}
+      <header className={`head-topbar${activeView === "chat" ? " head-topbar-chat" : ""}`}>
+        <a className="head-sidebar-brand" href="/" aria-label="SuchnaSetu"><img src="/logo-mark.png" alt="SuchnaSetu" /></a>
+        <div className="head-navigation">
+          <button
+            className="head-menu-toggle"
+            type="button"
+            aria-label={t(showNavigation ? "common.closeNavigation" : "common.openNavigation")}
+            aria-expanded={showNavigation}
+            aria-controls="head-navigation-menu"
+            onClick={() => setShowNavigation((current) => !current)}
+          >
+            <span /><span /><span />
+          </button>
+          {showNavigation && (
+            <nav className="head-menu-panel" id="head-navigation-menu" aria-label={t("head.workspace")}>
+              <p className="head-menu-account"><strong>{user.name}</strong><small>{t("head.role")}</small></p>
+              <button type="button" className={activeView === "chat" ? "selected" : ""} onClick={() => { setActiveView("chat"); setShowNavigation(false); }}>{t("head.chat")}</button>
+              <button type="button" className={activeView === "dashboard" ? "selected" : ""} onClick={() => { setActiveView("dashboard"); setShowNavigation(false); }}>{t("head.dashboard")}</button>
+              <button type="button" className={activeView === "members" ? "selected" : ""} onClick={() => { setActiveView("members"); setShowNavigation(false); }}>{t("head.members")}</button>
+              <div className="head-menu-divider" />
+              <button type="button" onClick={() => openCreate("governmentEmployee")}>{t("head.addEmployee")}</button>
+              <button type="button" onClick={() => openCreate("smartCityWorker")}>{t("head.addDeveloper")}</button>
+              <div className="head-menu-language"><LanguageSwitcher /></div>
+              <button type="button" className="head-menu-signout" onClick={onLogout}>{t("common.signOut")}</button>
+            </nav>
+          )}
         </div>
-        <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>
+        <div className="head-page-title"><strong>{t(activeView === "chat" ? "head.chat" : activeView === "dashboard" ? "head.overview" : "head.members")}</strong><small>{department?.name || t("head.workspace")}</small></div>
+        <div className="head-topbar-spacer" />
+        {activeView === "members" && <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>}
         {departments.length > 1 && <label className="department-picker head-department-picker"><span className="visually-hidden">{t("common.department")}</span><select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>{departments.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>}
         <div className="head-profile">
-          <LanguageSwitcher />
           <span className="head-profile-avatar">{userInitials}</span>
           <span className="head-profile-name"><strong>{user.name}</strong><small>{t("head.role")}</small></span>
-          <button className="staff-logout" type="button" onClick={onLogout}>{t("common.signOut")}</button>
+          <button className="staff-logout head-topbar-signout" type="button" onClick={onLogout}>{t("common.signOut")}</button>
         </div>
       </header>
-      <section className="staff-content head-content">
-        {activeView === "dashboard" ? (
+      <section className={`staff-content head-content${activeView === "chat" ? " head-content-chat" : ""}`}>
+        {activeView !== "members" ? (
           <>
             <div className="staff-title-row head-title-row"><div><p className="staff-eyebrow">{t("head.workspace")}</p><h1>{t("head.overview")}</h1></div>
             </div>
@@ -342,6 +356,27 @@ export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
                   <article className="dashboard-metric head-metric"><span>{t("head.smartDevelopers")}</span><strong>{workerCount}</strong><small>{workerCount ? t("head.activeTeam") : t("head.inviteDeveloper")}</small><span className="head-metric-icon" aria-hidden="true">⌘</span></article>
                 </div>
                 <div className="head-dashboard-grid">
+                  <aside className="head-prompt-history" aria-label={t("head.promptHistory")}>
+                    <div className="head-prompt-history-heading">
+                      <span className="head-prompt-history-icon" aria-hidden="true">↺</span>
+                      <span><strong>{t("head.promptHistory")}</strong><small>{t("head.recentPrompts")}</small></span>
+                    </div>
+                    {promptHistory.length ? (
+                      <div className="head-prompt-history-list">
+                        {promptHistory.map((prompt) => (
+                          <button
+                            className="head-prompt-history-item"
+                            type="button"
+                            key={`${prompt.index}-${prompt.content}`}
+                            title={prompt.content}
+                            onClick={() => setAssistantInput(prompt.content)}
+                          >
+                            <span aria-hidden="true">↗</span>{prompt.content}
+                          </button>
+                        ))}
+                      </div>
+                    ) : <p className="head-prompt-history-empty">{t("head.noPromptHistory")}</p>}
+                  </aside>
                   <div className="head-dashboard-primary">
                     <section className="dashboard-chart-panel head-composition-panel">
                       <div className="dashboard-panel-heading"><div><h2>{t("head.teamComposition")}</h2></div><span>{department?.code}</span></div>
@@ -358,15 +393,15 @@ export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
                       {recentStaff.length ? <div className="head-recent-list">{recentStaff.map((member) => <article className="head-recent-member" key={member._id}><span className="head-member-avatar">{member.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><span className="head-member-copy"><strong>{member.name}</strong><small>{t(roles.find((item) => item.id === member.role)?.labelKey || "common.employee")}</small></span><span className="head-member-status">{t("common.active")}</span></article>)}</div> : <div className="head-recent-empty">{searchQuery ? t("head.noMatch") : t("head.recentEmpty")}</div>}
                     </section>
                   </div>
-                  <aside className="head-assistant-panel" aria-label={t("head.departmentOverview")}>
+                  <aside className="head-assistant-panel" aria-label={t("assistant.name")}>
                     <div className="head-assistant-heading">
-                      <span className="head-assistant-mark" aria-hidden="true">✦</span>
-                      <span><strong>{t("assistant.name")}</strong><small><i />{t("assistant.online")}</small></span>
+                      <span className="head-assistant-mark" aria-hidden="true"><img src="/logo-mark.png" alt="" /></span>
+                      <span className="head-assistant-heading-copy"><strong>{t("assistant.name")}</strong><small><i />{t("assistant.online")}</small></span>
                       <button className="head-assistant-menu" type="button" aria-label={t("assistant.help")} onClick={() => setShowAssistantHelp((current) => !current)}>•••</button>
                     </div>
                     <div className="head-assistant-messages" aria-live="polite">
-                      <p className="head-assistant-message">{t("assistant.greeting", { name: user.name })}</p>
-                      <p className="head-assistant-message">{t("assistant.summary", {
+                      <p className="head-assistant-message head-assistant-welcome">{t("assistant.greeting", { name: user.name })}</p>
+                      <p className="head-assistant-message head-assistant-summary">{t("assistant.summary", {
                         total: staff.length,
                         members: t(staff.length === 1 ? "assistant.member" : "assistant.members"),
                         employees: employeeCount,
@@ -381,7 +416,7 @@ export default function HeadWorkspace({ user, onLogout, onOpenAssistant }) {
                         </div>
                       ))}
                       {isAssistantRecording && <p className="head-assistant-voice-status" role="status">{t("chat.listening")}</p>}
-                      {isAssistantLoading && <p className="head-assistant-message">{t("assistant.thinking")}</p>}
+                      {isAssistantLoading && <p className="head-assistant-message head-assistant-thinking"><span aria-hidden="true"><i /><i /><i /></span>{t("assistant.thinking")}</p>}
                       {assistantError && <p className="head-assistant-error" role="alert">{assistantError}</p>}
                       {showAssistantHelp && <p className="head-assistant-message">{t("head.helpText")}</p>}
                       <div className="head-assistant-actions">
