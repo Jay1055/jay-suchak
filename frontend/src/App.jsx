@@ -3,26 +3,12 @@ import AdminWorkspace from "./AdminWorkspace.jsx";
 import HeadWorkspace from "./HeadWorkspace.jsx";
 import LoginPanel from "./LoginPanel.jsx";
 import { apiRequest } from "./api.js";
+import { LanguageSwitcher, useLanguage, withLanguageInstruction } from "./i18n.jsx";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/ask";
-
-const suggestions = [
-  {
-    icon: "⌂",
-    title: "Government schemes",
-    prompt: "What government schemes are available for small businesses?",
-  },
-  {
-    icon: "▤",
-    title: "Rules & regulations",
-    prompt: "How can I find the rules for starting a small business?",
-  },
-  {
-    icon: "↗",
-    title: "Application process",
-    prompt: "What documents do I need to apply for a government scheme?",
-  },
-];
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+const MAX_ATTACHMENTS = 5;
 
 function Icon({ name, size = 20 }) {
   const common = {
@@ -40,6 +26,9 @@ function Icon({ name, size = 20 }) {
   const paths = {
     plus: <path d="M12 5v14M5 12h14" />,
     send: <><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></>,
+    attach: <><path d="m21.4 11.6-8.5 8.5a5 5 0 0 1-7.1-7.1l9.2-9.2a3.5 3.5 0 0 1 5 5l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></>,
+    mic: <><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /></>,
+    stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     arrow: <path d="M7 17 17 7M7 7h10v10" />,
     close: <path d="m18 6-12 12M6 6l12 12" />,
@@ -49,39 +38,74 @@ function Icon({ name, size = 20 }) {
   return <svg {...common}>{paths[name]}</svg>;
 }
 
-function StaffHome({ user, onLogout }) {
+function StaffHome({ user, onLogout, onOpenAssistant }) {
+  const { t } = useLanguage();
   return (
     <main className="staff-workspace">
       <header className="staff-topbar">
         <a className="staff-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo.png" alt="SuchnaSetu" /></a>
-        <div className="staff-topbar-right"><span><strong>{user.name}</strong><small>{user.role === "governmentEmployee" ? "Government employee" : "Smart city developer"}</small></span><button className="staff-logout" type="button" onClick={onLogout}>Sign out</button></div>
+        <nav className="staff-nav" aria-label={t("staff.workspaceNavigation")}>
+          <button className="staff-nav-item staff-assistant-link" type="button" onClick={onOpenAssistant}><Icon name="spark" size={16} />{t("assistant.name")}</button>
+        </nav>
+        <div className="staff-topbar-right"><LanguageSwitcher /><span><strong>{user.name}</strong><small>{user.role === "governmentEmployee" ? t("staff.roleEmployee") : t("staff.roleDeveloper")}</small></span><button className="staff-logout" type="button" onClick={onLogout}>{t("common.signOut")}</button></div>
       </header>
       <section className="staff-content staff-profile-home">
-        <p className="staff-eyebrow">SUCHNASETU ACCOUNT</p>
-        <h1>Welcome, {user.name}</h1>
-        <p>{user.department?.name || "No department assigned"} · {user.department?.code || ""}</p>
+        <p className="staff-eyebrow">{t("staff.account")}</p>
+        <h1>{t("staff.welcome", { name: user.name })}</h1>
+        <p>{user.department?.name || t("staff.noDepartment")} · {user.department?.code || ""}</p>
       </section>
     </main>
   );
 }
 
+function LoginWelcomeAnimation({ onClose }) {
+  const { t } = useLanguage();
+  return (
+    <div className="welcome-animation-fullscreen" role="dialog" aria-modal="true" aria-label={t("welcome.aria")}>
+      <video
+        className="welcome-animation-video"
+        src="/welcome-animation.mp4"
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        onEnded={onClose}
+        onError={onClose}
+      />
+    </div>
+  );
+}
+
 function App() {
+  const { language, t } = useLanguage();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(true);
+    const [attachments, setAttachments] = useState([]);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showWelcomeAnimation, setShowWelcomeAnimation] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const attachmentInputRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const hasConversation = messages.length > 0;
+  const suggestions = [
+    { icon: "⌂", title: t("chat.schemes"), prompt: t("chat.schemesPrompt") },
+    { icon: "▤", title: t("chat.rules"), prompt: t("chat.rulesPrompt") },
+    { icon: "↗", title: t("chat.application"), prompt: t("chat.applicationPrompt") },
+  ];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  useEffect(() => () => recognitionRef.current?.abort(), []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -96,35 +120,162 @@ function App() {
     try {
       await apiRequest("/api/auth/logout", { method: "POST" });
     } catch {
-      setError("Could not reach the API to end the session.");
+      setError(t("auth.noApi"));
     } finally {
       setUser(null);
-      setShowLogin(false);
+      setShowAssistant(false);
     }
   }
 
-  if (isCheckingSession) return <main className="auth-loading" aria-live="polite">Checking your session...</main>;
-  if (user?.role === "admin") return <AdminWorkspace user={user} onLogout={signOut} />;
-  if (user?.role === "departmentHead") return <HeadWorkspace user={user} onLogout={signOut} />;
-  if (user) return <StaffHome user={user} onLogout={signOut} />;
-  return <LoginPanel onLogin={setUser} />;
+  function handleLogin(account) {
+    setUser(account);
+    setShowWelcomeAnimation(true);
+  }
 
+  if (isCheckingSession) return <main className="auth-loading"><LanguageSwitcher /><span aria-live="polite">{t("common.loadingSession")}</span></main>;
+  if (!user) return <LoginPanel onLogin={handleLogin} />;
+  if (user?.role === "admin" && !showAssistant) return (
+    <>
+      <AdminWorkspace user={user} onLogout={signOut} onOpenAssistant={() => setShowAssistant(true)} />
+      {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
+    </>
+  );
+  if (user?.role === "departmentHead" && !showAssistant) return (
+    <>
+      <HeadWorkspace user={user} onLogout={signOut} onOpenAssistant={() => setShowAssistant(true)} />
+      {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
+    </>
+  );
+  if (user && !showAssistant) return (
+    <>
+      <StaffHome user={user} onLogout={signOut} onOpenAssistant={() => setShowAssistant(true)} />
+      {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
+    </>
+  );
   function startNewChat() {
     setMessages([]);
     setInput("");
+    setAttachments([]);
     setError("");
     setSidebarOpen(false);
     textareaRef.current?.focus();
   }
 
+  function handleAttachmentSelection(event) {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!selectedFiles.length) return;
+
+    const availableSlots = MAX_ATTACHMENTS - attachments.length;
+    if (availableSlots <= 0) {
+      setError(t("chat.attachmentLimit", { count: MAX_ATTACHMENTS }));
+      return;
+    }
+
+    const acceptedFiles = selectedFiles.slice(0, availableSlots);
+    const currentTotalSize = attachments.reduce((total, attachment) => total + attachment.file.size, 0);
+    const addedTotalSize = acceptedFiles.reduce((total, file) => total + file.size, 0);
+    if (selectedFiles.length > availableSlots) {
+      setError(t("chat.attachmentLimit", { count: MAX_ATTACHMENTS }));
+    } else {
+      setError("");
+    }
+
+    if (currentTotalSize + addedTotalSize > MAX_TOTAL_ATTACHMENT_SIZE) {
+      setError(t("chat.attachmentsTotalTooLarge", { size: 20 }));
+      return;
+    }
+
+    const tooLarge = acceptedFiles.find((file) => file.size > MAX_ATTACHMENT_SIZE);
+    if (tooLarge) {
+      setError(t("chat.attachmentTooLarge", { name: tooLarge.name, size: 10 }));
+      return;
+    }
+
+    setAttachments((current) => [
+      ...current,
+      ...acceptedFiles.map((file) => ({ id: crypto.randomUUID(), file })),
+    ]);
+  }
+
+  function toggleVoiceInput() {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError(t("chat.voiceUnsupported"));
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = { en: "en-US", hi: "hi-IN", gu: "gu-IN" }[language] || "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript || "")
+        .join(" ")
+        .trim();
+      if (transcript) {
+        setInput((current) => `${current}${current ? " " : ""}${transcript}`);
+        setError("");
+      }
+    };
+    recognition.onerror = (event) => {
+      setError(t(event.error === "not-allowed" ? "chat.voicePermission" : "chat.voiceFailed"));
+    };
+    recognition.onend = () => {
+      setIsRecording(false);
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    setError("");
+    setIsRecording(true);
+    try {
+      recognition.start();
+    } catch (recognitionError) {
+      recognitionRef.current = null;
+      setIsRecording(false);
+      setError(t("chat.voiceFailed"));
+      console.error("Unable to start voice input.", recognitionError);
+    }
+  }
+
+  function readAttachment(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== "string") {
+          reject(new Error(t("chat.attachmentReadFailed", { name: file.name })));
+          return;
+        }
+        resolve({ name: file.name, type: file.type || "application/octet-stream", dataUrl: reader.result });
+      };
+      reader.onerror = () => reject(new Error(t("chat.attachmentReadFailed", { name: file.name })));
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function sendMessage(event) {
     event?.preventDefault();
-    const query = input.trim();
-    if (!query || isLoading) return;
+    const text = input.trim();
+    const pendingAttachments = attachments;
+    if ((!text && !pendingAttachments.length) || isLoading || isRecording) return;
+    const query = text || t("chat.attachmentsOnly");
 
-    const userMessage = { id: crypto.randomUUID(), role: "user", content: query };
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+      attachments: pendingAttachments.map(({ id, file }) => ({ id, name: file.name, type: file.type })),
+    };
     setMessages((current) => [...current, userMessage]);
     setInput("");
+    setAttachments([]);
     setError("");
     setIsLoading(true);
 
@@ -132,15 +283,19 @@ function App() {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({
+          query: withLanguageInstruction(query, language),
+          language,
+          attachments: await Promise.all(pendingAttachments.map(({ file }) => readAttachment(file))),
+        }),
       });
       if (!response.ok) {
-        throw new Error(`The assistant couldn't answer (HTTP ${response.status}). Please try again.`);
+        throw new Error(t("chat.apiFailed", { status: response.status }));
       }
 
       const data = await response.json();
       if (typeof data.answer !== "string" || !data.answer.trim()) {
-        throw new Error("The API response did not include a valid “answer” field.");
+        throw new Error(t("chat.apiInvalid"));
       }
       setMessages((current) => [
         ...current,
@@ -149,7 +304,7 @@ function App() {
     } catch (requestError) {
       setError(
         requestError instanceof TypeError
-          ? `Couldn't reach the API at ${API_URL}. Check that your FastAPI server is running and allows this frontend's origin.`
+          ? t("chat.apiOffline", { url: API_URL, hint: t("assistant.fastApiHint") })
           : requestError.message,
       );
     } finally {
@@ -164,12 +319,66 @@ function App() {
     }
   }
 
+  const composerAttachments = attachments.length > 0 && (
+    <div className="composer-attachments" aria-label={t("chat.attachmentsSelected")}>
+      {attachments.map(({ id, file }) => (
+        <span className="composer-attachment" key={id}>
+          <span className="composer-attachment-name" title={file.name}>{file.name}</span>
+          <button
+            type="button"
+            aria-label={t("chat.removeAttachment", { name: file.name })}
+            onClick={() => setAttachments((current) => current.filter((attachment) => attachment.id !== id))}
+          >
+            <Icon name="close" size={13} />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+
+  const composerInputActions = (
+    <div className="composer-input-actions">
+      <input
+        ref={attachmentInputRef}
+        className="composer-file-input"
+        type="file"
+        accept="image/*,audio/*,video/*,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.csv"
+        multiple
+        onChange={handleAttachmentSelection}
+        aria-label={t("chat.attachFiles")}
+      />
+      <button
+        className="composer-tool-button"
+        type="button"
+        aria-label={t("chat.attachFiles")}
+        title={t("chat.attachFiles")}
+        onClick={() => attachmentInputRef.current?.click()}
+        disabled={isLoading || attachments.length >= MAX_ATTACHMENTS}
+      >
+        <Icon name="attach" size={18} />
+        <span className="composer-tool-label">{t("chat.attachShort")}</span>
+      </button>
+      <button
+        className={isRecording ? "composer-tool-button recording" : "composer-tool-button"}
+        type="button"
+        aria-label={t(isRecording ? "chat.stopRecording" : "chat.voiceInput")}
+        title={t(isRecording ? "chat.stopRecording" : "chat.voiceInput")}
+        aria-pressed={isRecording}
+        onClick={toggleVoiceInput}
+        disabled={isLoading}
+      >
+        <Icon name={isRecording ? "stop" : "mic"} size={18} />
+        <span className="composer-tool-label">{t(isRecording ? "chat.stopShort" : "chat.voiceShort")}</span>
+      </button>
+    </div>
+  );
+
   return (
     <div className="app-shell">
-      {sidebarOpen && (
+    {sidebarOpen && (
         <button
           className="sidebar-backdrop"
-          aria-label="Close navigation"
+          aria-label={t("common.closeNavigation")}
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -178,66 +387,70 @@ function App() {
           <a className="brand" href="#" aria-label="SuchnaSetu home" onClick={(event) => event.preventDefault()}>
             <img src="/logo.png" alt="SuchnaSetu" />
           </a>
-          <button className="icon-button mobile-close" aria-label="Close navigation" onClick={() => setSidebarOpen(false)}>
+          <button className="icon-button mobile-close" aria-label={t("common.closeNavigation")} onClick={() => setSidebarOpen(false)}>
             <Icon name="close" />
           </button>
         </div>
         <button className="new-chat-button" onClick={startNewChat}>
           <Icon name="plus" size={18} />
-          <span>Start a new chat</span>
+          <span>{t("chat.new")}</span>
           <span className="shortcut">⌘ K</span>
         </button>
 
         <div className="sidebar-section">
-          <p className="section-label">YOUR SPACE</p>
+          <p className="section-label">{t("chat.space")}</p>
           <button className="nav-item active">
             <span className="nav-item-icon">◌</span>
-            <span>Assistant</span>
+            <span>{t("chat.assistant")}</span>
             <span className="active-dot" />
           </button>
           <button className="nav-item" onClick={startNewChat}>
             <span className="nav-item-icon">◷</span>
-            <span>Recent conversations</span>
+            <span>{t("chat.recent")}</span>
           </button>
         </div>
 
         <div className="sidebar-note">
           <div className="note-icon"><Icon name="spark" size={17} /></div>
-          <p className="note-title">Clarity starts here</p>
-          <p className="note-copy">Understand policies and procedures, one question at a time.</p>
+          <p className="note-title">{t("chat.noteTitle")}</p>
+          <p className="note-copy">{t("chat.noteCopy")}</p>
         </div>
 
         <div className="sidebar-footer">
           <span className="status-dot" />
-          <span>Here to help, whenever you need</span>
+          <span>{t("chat.status")}</span>
         </div>
       </aside>
 
       <main className="main-panel">
         <header className="topbar">
-          <button className="icon-button menu-button" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}>
+          <button className="icon-button menu-button" aria-label={t("common.openNavigation")} onClick={() => setSidebarOpen(true)}>
             <Icon name="menu" />
           </button>
           <div className="breadcrumb">
             <span>SuchnaSetu</span>
             <span className="breadcrumb-divider">/</span>
-            <strong>Assistant</strong>
+            <strong>{t("chat.assistant")}</strong>
           </div>
           <div className="topbar-right">
-            <span className="secure-label"><span className="secure-dot" /> Private conversation</span>
-            {!isCheckingSession && <button className="sign-in-button" type="button" onClick={() => setShowLogin(true)}>Sign in</button>}
-            <div className="avatar" aria-label="Guest user">G</div>
+            <span className="secure-label"><span className="secure-dot" /> {t("chat.private")}</span>
+            <LanguageSwitcher />
+            <button className="sign-in-button chat-workspace-return" type="button" onClick={() => setShowAssistant(false)}>
+              <Icon name="arrow" size={15} />
+              {t("chat.returnToWorkspace")}
+            </button>
+            <div className="avatar" aria-label={user.name}>{user.name.slice(0, 1).toUpperCase()}</div>
           </div>
         </header>
 
         <section className={`chat-area${hasConversation ? " chat-area-active" : ""}`}>
           {!hasConversation ? (
             <div className="welcome-view">
-              <div className="welcome-badge"><Icon name="spark" size={15} /> YOUR GUIDE TO CLEAR ANSWERS</div>
-              <h1>Good questions lead<br />to <span>clearer answers.</span></h1>
+              <div className="welcome-badge"><Icon name="spark" size={15} /> {t("chat.guide")}</div>
+              <h1>{t("chat.headline")}<br />{t("chat.headlineSecond")} <span>{t("chat.clearer")}</span></h1>
               <p className="welcome-description">
-                Ask about government policies, rules, or procedures.<br className="desktop-break" />
-                We’ll help make the complicated feel simple.
+                {t("chat.description")}<br className="desktop-break" />
+                {t("chat.descriptionSecond")}
               </p>
 
               <form className="composer welcome-composer" onSubmit={sendMessage}>
@@ -246,19 +459,24 @@ function App() {
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={handleInputKeyDown}
-                  placeholder="Ask anything about policies, rules, or procedures..."
+                  placeholder={t("chat.placeholder")}
                   rows={1}
-                  aria-label="Your question"
+                  aria-label={t("chat.placeholder")}
                 />
+                {composerAttachments}
+                {isRecording && <p className="composer-voice-status" role="status">{t("chat.listening")}</p>}
                 <div className="composer-bottom">
-                  <span className="composer-hint"><span className="hint-key">↵</span> to send <span className="hint-separator">·</span> shift + ↵ for a new line</span>
-                  <button className="send-button" type="submit" disabled={!input.trim() || isLoading} aria-label="Send message">
-                    <span>Ask SuchnaSetu</span><Icon name="send" size={16} />
+                  <div className="composer-bottom-left">
+                    {composerInputActions}
+                    <span className="composer-hint"><span className="hint-key">↵</span> {t("chat.toSend")} <span className="hint-separator">·</span> {t("chat.newLine")}</span>
+                  </div>
+                  <button className="send-button" type="submit" disabled={(!input.trim() && !attachments.length) || isLoading || isRecording} aria-label={t("assistant.send")}>
+                    <span>{t("chat.askSuchnaSetu")}</span><Icon name="send" size={16} />
                   </button>
                 </div>
               </form>
 
-              <div className="suggestions-heading"><span>NOT SURE WHERE TO START?</span><span className="suggestion-line" /></div>
+              <div className="suggestions-heading"><span>{t("chat.suggestions")}</span><span className="suggestion-line" /></div>
               <div className="suggestion-grid">
                 {suggestions.map((suggestion) => (
                   <button
@@ -276,7 +494,7 @@ function App() {
                 ))}
               </div>
               {error && <p className="error-message" role="alert">{error}</p>}
-              <p className="disclaimer">SuchnaSetu can make mistakes. Always verify important information with official sources.</p>
+              <p className="disclaimer">{t("chat.disclaimer")}</p>
             </div>
           ) : (
             <div className="conversation">
@@ -289,8 +507,18 @@ function App() {
                       <div className="message-avatar user-avatar">G</div>
                     )}
                     <div className="message-body">
-                      <div className="message-author">{message.role === "assistant" ? "SuchnaSetu" : "You"}</div>
-                      <p>{message.content}</p>
+                      <div className="message-author">{message.role === "assistant" ? "SuchnaSetu" : t("chat.you")}</div>
+                      {message.content && <p>{message.content}</p>}
+                      {message.attachments?.length > 0 && (
+                        <div className="message-attachments" aria-label={t("chat.attachmentsSelected")}>
+                          {message.attachments.map((attachment) => (
+                            <span className="message-attachment" key={attachment.id} title={attachment.type || ""}>
+                              <Icon name="attach" size={14} />
+                              <span>{attachment.name}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -299,7 +527,7 @@ function App() {
                     <img className="message-avatar" src="/logo.png" alt="" />
                     <div className="message-body">
                       <div className="message-author">SuchnaSetu</div>
-                      <div className="typing-indicator" aria-label="SuchnaSetu is thinking"><span /><span /><span /></div>
+                      <div className="typing-indicator" aria-label={t("assistant.thinking")}><span /><span /><span /></div>
                     </div>
                   </article>
                 )}
@@ -312,23 +540,27 @@ function App() {
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={handleInputKeyDown}
-                  placeholder="Ask a follow-up question..."
+                  placeholder={t("chat.followup")}
                   rows={1}
-                  aria-label="Your follow-up question"
+                  aria-label={t("chat.followup")}
                 />
+                {composerAttachments}
+                {isRecording && <p className="composer-voice-status" role="status">{t("chat.listening")}</p>}
                 <div className="composer-bottom">
-                  <span className="composer-hint"><span className="hint-key">↵</span> to send <span className="hint-separator">·</span> shift + ↵ for a new line</span>
-                  <button className="send-button" type="submit" disabled={!input.trim() || isLoading} aria-label="Send message">
-                    <span>Send</span><Icon name="send" size={16} />
+                  <div className="composer-bottom-left">
+                    {composerInputActions}
+                    <span className="composer-hint"><span className="hint-key">↵</span> {t("chat.toSend")} <span className="hint-separator">·</span> {t("chat.newLine")}</span>
+                  </div>
+                  <button className="send-button" type="submit" disabled={(!input.trim() && !attachments.length) || isLoading || isRecording} aria-label={t("assistant.send")}>
+                    <span>{t("chat.send")}</span><Icon name="send" size={16} />
                   </button>
                 </div>
               </form>
-              <p className="conversation-disclaimer">For guidance only. Please confirm important details with official sources.</p>
+              <p className="conversation-disclaimer">{t("chat.verify")}</p>
             </div>
           )}
         </section>
       </main>
-      {showLogin && <LoginPanel onLogin={(account) => { setUser(account); setShowLogin(false); }} onClose={() => setShowLogin(false)} />}
     </div>
   );
 }

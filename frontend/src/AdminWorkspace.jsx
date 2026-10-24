@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "./api.js";
+import { LanguageSwitcher, useLanguage } from "./i18n.jsx";
 
 const chartSeries = [
-  { key: "headCount", label: "Department heads", className: "heads" },
-  { key: "employeeCount", label: "Government employees", className: "employees" },
-  { key: "workerCount", label: "Smart city developers", className: "developers" },
+  { key: "headCount", translationKey: "admin.heads", className: "heads" },
+  { key: "employeeCount", translationKey: "admin.employees", className: "employees" },
+  { key: "workerCount", translationKey: "admin.developers", className: "developers" },
 ];
 
-export default function AdminWorkspace({ user, onLogout }) {
+export default function AdminWorkspace({ user, onLogout, onOpenAssistant }) {
+  const { t } = useLanguage();
   const [overview, setOverview] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -30,35 +32,38 @@ export default function AdminWorkspace({ user, onLogout }) {
   return (
     <main className="staff-workspace admin-workspace">
       <header className="staff-topbar">
-        <a className="staff-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo.png" alt="SuchnaSetu" /></a>
-        <nav className="staff-nav" aria-label="Administrator workspace"><span className="staff-nav-item selected">Overview</span></nav>
-        <div className="staff-topbar-right"><span><strong>{user.email}</strong><small>Administrator</small></span><button className="staff-logout" type="button" onClick={onLogout}>Sign out</button></div>
+        <a className="staff-brand" href="/" aria-label="SuchnaSetu"><img src="/logo.png" alt="SuchnaSetu" /></a>
+        <nav className="staff-nav" aria-label={t("admin.workspace")}>
+          <span className="staff-nav-item selected">{t("common.overview")}</span>
+          <button className="staff-nav-item staff-assistant-link" type="button" onClick={onOpenAssistant}><span aria-hidden="true">✦</span>{t("assistant.name")}</button>
+        </nav>
+        <div className="staff-topbar-right"><LanguageSwitcher /><span><strong>{user.email}</strong><small>{t("admin.workspace")}</small></span><button className="staff-logout" type="button" onClick={onLogout}>{t("common.signOut")}</button></div>
       </header>
       <section className="staff-content">
-        <div className="staff-title-row"><div><p className="staff-eyebrow">ORGANIZATION</p><h1>Admin overview</h1><p>Departments, department heads, and team accounts across SuchnaSetu.</p></div></div>
+        <div className="staff-title-row"><div><p className="staff-eyebrow">{t("admin.organization")}</p><h1>{t("admin.overview")}</h1><p>{t("admin.description")}</p></div></div>
         {error && <p className="auth-error staff-page-error" role="alert">{error}</p>}
-        {isLoading ? <div className="staff-empty">Loading organization data...</div> : overview && (
+        {isLoading ? <div className="staff-empty">{t("admin.loading")}</div> : overview && (
           <>
             <div className="dashboard-metrics admin-metrics">
-              <article className="dashboard-metric"><span>DEPARTMENTS</span><strong>{totals.departmentCount}</strong><small>Organization units</small></article>
-              <article className="dashboard-metric"><span>DEPARTMENT HEADS</span><strong>{totals.activeHeadCount}<small className="metric-total"> / {totals.headCount} total</small></strong><small>Active accounts</small></article>
-              <article className="dashboard-metric"><span>GOVERNMENT EMPLOYEES</span><strong>{totals.employeeCount}</strong><small>Active accounts</small></article>
-              <article className="dashboard-metric"><span>SMART CITY DEVELOPERS</span><strong>{totals.workerCount}</strong><small>Active accounts</small></article>
+              <article className="dashboard-metric"><span>{t("admin.departments")}</span><strong>{totals.departmentCount}</strong><small>{t("admin.units")}</small></article>
+              <article className="dashboard-metric"><span>{t("admin.heads")}</span><strong>{totals.activeHeadCount}<small className="metric-total"> / {t("admin.total", { count: totals.headCount })}</small></strong><small>{t("admin.active")}</small></article>
+              <article className="dashboard-metric"><span>{t("admin.employees")}</span><strong>{totals.employeeCount}</strong><small>{t("admin.active")}</small></article>
+              <article className="dashboard-metric"><span>{t("admin.developers")}</span><strong>{totals.workerCount}</strong><small>{t("admin.active")}</small></article>
             </div>
             <section className="admin-chart-panel">
-              <div className="dashboard-panel-heading"><div><p className="staff-eyebrow">TEAM DISTRIBUTION</p><h2>Accounts by department</h2></div><span>{totals.memberCount} team accounts</span></div>
+              <div className="dashboard-panel-heading"><div><p className="staff-eyebrow">{t("admin.distribution")}</p><h2>{t("admin.accountsByDepartment")}</h2></div><span>{t("admin.teamAccounts", { count: totals.memberCount })}</span></div>
               {overview.departments.length ? (
                 <div className="admin-chart-list">
                   {overview.departments.map((department) => (
                     <article className="admin-chart-department" key={department._id}>
                       <div className="admin-chart-dept-heading"><strong>{department.name}</strong><span>{department.code}</span></div>
                       <div className="admin-chart-series-list">
-                        {chartSeries.map((series) => <div className="admin-chart-series" key={series.key}><span>{series.label}</span><div className="member-chart-track"><span className={`member-chart-bar ${series.className}`} style={{ width: `${department[series.key] / maxValues[series.key] * 100}%` }} /></div><strong>{department[series.key]}</strong></div>)}
+                        {chartSeries.map((series) => <div className="admin-chart-series" key={series.key}><span>{t(series.translationKey)}</span><div className="member-chart-track"><span className={`member-chart-bar ${series.className}`} style={{ width: `${department[series.key] / maxValues[series.key] * 100}%` }} /></div><strong>{department[series.key]}</strong></div>)}
                       </div>
                     </article>
                   ))}
                 </div>
-              ) : <div className="staff-empty"><h3>No departments yet</h3><p>Create departments in the admin workspace to see organization analytics here.</p></div>}
+              ) : <div className="staff-empty"><h3>{t("admin.noDepartments")}</h3><p>{t("admin.noDepartmentsHelp")}</p></div>}
             </section>
           </>
         )}
