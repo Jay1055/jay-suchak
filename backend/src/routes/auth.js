@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { rateLimit } from "express-rate-limit";
 import Admin from "../models/Admin.js";
+import Department from "../models/Department.js";
 import DepartmentHead from "../models/DepartmentHead.js";
 import StaffAccount from "../models/StaffAccount.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -60,6 +61,31 @@ router.post("/login", loginLimit, async (request, response, next) => {
 
 router.get("/me", requireAuth, (request, response) => {
   response.json({ user: request.user, departments: request.departments });
+});
+
+router.get("/department-directory", requireAuth, async (request, response, next) => {
+  if (!["governmentEmployee", "smartCityWorker"].includes(request.user.role)) {
+    return response.status(403).json({ message: "This directory is available to department staff." });
+  }
+  if (!request.user.department?._id) return response.json({ department: null, head: null, staff: [] });
+  try {
+    const department = await Department.findById(request.user.department._id)
+      .select("name code description category")
+      .lean();
+    if (!department) return response.json({ department: null, head: null, staff: [] });
+    const assignedHead = request.user.departmentHead?.status === "active" ? {
+      id: request.user.departmentHead.id,
+      name: request.user.departmentHead.officialName,
+      email: request.user.departmentHead.officialEmail,
+    } : null;
+    const staff = await StaffAccount.find({ department: department._id, status: "active" })
+      .select("name email phone role")
+      .sort({ name: 1 })
+      .lean();
+    return response.json({ department, head: assignedHead, staff });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.patch("/profile", requireAuth, async (request, response, next) => {

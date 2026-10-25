@@ -31,44 +31,15 @@ function Icon({ name, size = 20 }) {
     stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     arrow: <path d="M7 17 17 7M7 7h10v10" />,
+    department: <><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 9h.01M15 9h.01M9 12h.01M15 12h.01" /></>,
     close: <path d="m18 6-12 12M6 6l12 12" />,
     home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
     collapse: <><path d="m15 18-6-6 6-6" /><path d="M4 5v14" /></>,
     spark: <><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z" /><path d="m19 14 1.2 2.8L23 18l-2.8 1.2L19 22l-1.2-2.8L15 18l2.8-1.2L19 14Z" /></>,
+    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
-}
-
-function StaffHome({ user, onLogout, onOpenAssistant }) {
-  const { t } = useLanguage();
-  return (
-    <main className="staff-workspace staff-workspace-with-sidebar">
-      <aside className="staff-home-sidebar" aria-label={t("staff.workspaceNavigation")}>
-        <nav className="staff-home-nav">
-          <a className="staff-home-nav-item active" href="/" aria-current="page"><Icon name="home" size={17} /><span>{t("common.home")}</span></a>
-          <button className="staff-home-nav-item" type="button" onClick={onOpenAssistant}><Icon name="spark" size={17} /><span>{t("assistant.name")}</span></button>
-        </nav>
-        <button className="staff-home-logout" type="button" onClick={onLogout}>{t("common.signOut")}</button>
-      </aside>
-      <div className="staff-home-main">
-        <header className="staff-topbar staff-home-topbar">
-          <a className="staff-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo.png" alt="SuchnaSetu" /></a>
-          <p className="staff-home-context">SuchnaSetu <span>/</span> {t("common.home")}</p>
-          <div className="staff-topbar-right">
-            <LanguageSwitcher />
-            <span><strong>{user.name}</strong><small>{user.role === "governmentEmployee" ? t("staff.roleEmployee") : t("staff.roleDeveloper")}</small></span>
-          </div>
-        </header>
-        <section className="staff-content staff-profile-home">
-          <p className="staff-eyebrow">{t("staff.account")}</p>
-          <h1>{t("staff.welcome", { name: user.name })}</h1>
-          <p>{user.department?.name || t("staff.noDepartment")} · {user.department?.code || ""}</p>
-          <button className="staff-home-assistant-action" type="button" onClick={onOpenAssistant}><Icon name="spark" size={18} />{t("staff.openAssistant")}</button>
-        </section>
-      </div>
-    </main>
-  );
 }
 
 function LoginWelcomeAnimation({ onClose }) {
@@ -166,15 +137,9 @@ function App() {
       {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
     </>
   );
-  if (user?.role === "departmentHead" && !showAssistant) return (
+  if (["departmentHead", "governmentEmployee", "smartCityWorker"].includes(user?.role) && !showAssistant) return (
     <>
       <HeadWorkspace user={user} onLogout={signOut} />
-      {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
-    </>
-  );
-  if (user && !showAssistant) return (
-    <>
-      <StaffHome user={user} onLogout={signOut} onOpenAssistant={() => setShowAssistant(true)} />
       {showWelcomeAnimation && <LoginWelcomeAnimation onClose={() => setShowWelcomeAnimation(false)} />}
     </>
   );

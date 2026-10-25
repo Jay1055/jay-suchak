@@ -19,6 +19,7 @@ function AssistantIcon({ name }) {
     attach: <><path d="m21.4 11.6-8.5 8.5a5 5 0 0 1-7.1-7.1l9.2-9.2a3.5 3.5 0 0 1 5 5l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></>,
     spark: <><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m18.5 15 1 2.5L22 18.5l-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" /></>,
     home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
+    building: <><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 9h.01M15 9h.01M9 12h.01M15 12h.01" /></>,
     users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
     plus: <path d="M12 5v14M5 12h14" />,
     userPlus: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M16 11h6" /></>,
@@ -135,6 +136,7 @@ function StaffForm({ department, staff, defaultRole, onClose, onSaved }) {
 
 export default function HeadWorkspace({ user, onLogout }) {
   const { language, t } = useLanguage();
+  const isReadOnly = ["governmentEmployee", "smartCityWorker"].includes(user.role);
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState("");
   const [staff, setStaff] = useState([]);
@@ -163,11 +165,17 @@ export default function HeadWorkspace({ user, onLogout }) {
 
   useEffect(() => {
     let isCurrent = true;
-    apiRequest("/api/head/departments")
+    apiRequest(isReadOnly ? "/api/auth/department-directory" : "/api/head/departments")
       .then((data) => {
         if (!isCurrent) return;
-        setDepartments(data.departments);
-        setDepartmentId(data.departments[0]?._id || "");
+        if (isReadOnly) {
+          setDepartments(data.department ? [{ ...data.department, heads: data.head ? [data.head] : [] }] : []);
+          setStaff(data.staff || []);
+          setDepartmentId(data.department?._id || "");
+        } else {
+          setDepartments(data.departments);
+          setDepartmentId(data.departments[0]?._id || "");
+        }
       })
       .catch((requestError) => { if (isCurrent) setError(requestError.message); })
       .finally(() => { if (isCurrent) setIsLoading(false); });
@@ -175,6 +183,7 @@ export default function HeadWorkspace({ user, onLogout }) {
   }, []);
 
   async function loadStaff() {
+    if (isReadOnly) return;
     if (!departmentId) {
       setStaff([]);
       return;
@@ -369,23 +378,28 @@ export default function HeadWorkspace({ user, onLogout }) {
       <header className={`head-topbar${activeView === "chat" ? " head-topbar-chat" : ""}`}>
         <a className="head-topbar-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo-mark.png" alt="" /><span>SuchnaSetu</span></a>
         <div className="head-topbar-spacer" />
-        {activeView === "members" && <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>}
+        {activeView === "members" && !isReadOnly && <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>}
         {departments.length > 1 && <label className="department-picker head-department-picker"><span className="visually-hidden">{t("common.department")}</span><select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>{departments.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>}
       </header>
       <aside className="head-sidebar" aria-label={t("head.workspace")}>
         <nav className="head-sidebar-nav" aria-label={t("head.workspace")}>
           <button className={`head-side-link head-assistant-nav-link${activeView === "chat" ? " active" : ""}`} type="button" title={t("head.chat")} aria-label={t("head.chat")} aria-current={activeView === "chat" ? "page" : undefined} data-tooltip={t("head.chat")} onClick={() => setActiveView("chat")}><AssistantIcon name="spark" /></button>
-          <button className={`head-side-link${activeView === "members" ? " active" : ""}`} type="button" title={t("head.members")} aria-label={t("head.members")} aria-current={activeView === "members" ? "page" : undefined} data-tooltip={t("head.members")} onClick={() => setActiveView("members")}><AssistantIcon name="users" /></button>
-          <span className="head-side-divider" aria-hidden="true" />
-          <button className="head-side-link" type="button" title={t("head.addEmployee")} aria-label={t("head.addEmployee")} data-tooltip={t("head.addEmployee")} onClick={() => openCreate("governmentEmployee")}><AssistantIcon name="plus" /></button>
-          <button className="head-side-link" type="button" title={t("head.addDeveloper")} aria-label={t("head.addDeveloper")} data-tooltip={t("head.addDeveloper")} onClick={() => openCreate("smartCityWorker")}><AssistantIcon name="userPlus" /></button>
+          {!isReadOnly && <button className={`head-side-link${activeView === "members" ? " active" : ""}`} type="button" title={t("head.members")} aria-label={t("head.members")} aria-current={activeView === "members" ? "page" : undefined} data-tooltip={t("head.members")} onClick={() => setActiveView("members")}><AssistantIcon name="users" /></button>}
+          {isReadOnly &&
+            <button className={`head-side-link${activeView === "department" ? " active" : ""}`} type="button" title={t("staff.viewDepartment")} aria-label={t("staff.viewDepartment")} aria-current={activeView === "department" ? "page" : undefined} data-tooltip={t("staff.viewDepartment")} onClick={() => setActiveView("department")}><AssistantIcon name="building" /></button>
+          }
+          {!isReadOnly && <>
+            <span className="head-side-divider" aria-hidden="true" />
+            <button className="head-side-link" type="button" title={t("head.addEmployee")} aria-label={t("head.addEmployee")} data-tooltip={t("head.addEmployee")} onClick={() => openCreate("governmentEmployee")}><AssistantIcon name="plus" /></button>
+            <button className="head-side-link" type="button" title={t("head.addDeveloper")} aria-label={t("head.addDeveloper")} data-tooltip={t("head.addDeveloper")} onClick={() => openCreate("smartCityWorker")}><AssistantIcon name="userPlus" /></button>
+          </>}
         </nav>
         <div className="head-sidebar-bottom">
           <div className="head-sidebar-profile-menu">
             <button className="head-profile-trigger" type="button" title={t("profile.myProfile")} aria-label={t("profile.myProfile")} aria-haspopup="menu" aria-expanded={isProfileMenuOpen} onClick={() => setIsProfileMenuOpen((current) => !current)}><span className="head-sidebar-initials">{userInitials}</span></button>
             {isProfileMenuOpen && <div className="head-profile-menu" role="menu">
               <div className="head-profile-menu-language" role="none"><LanguageSwitcher /></div>
-              <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); setShowProfile(true); }}>{t("profile.edit")}</button>
+              {!isReadOnly && <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); setShowProfile(true); }}>{t("profile.edit")}</button>}
               <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); onLogout(); }}>{t("common.signOut")}</button>
             </div>}
           </div>
@@ -456,9 +470,9 @@ export default function HeadWorkspace({ user, onLogout }) {
                       {isAssistantRecording && <p className="head-assistant-voice-status" role="status">{t("chat.listening")}</p>}
                       {isAssistantLoading && <p className="head-assistant-message head-assistant-thinking"><span aria-hidden="true"><i /><i /><i /></span>{t("assistant.thinking")}</p>}
                       {assistantError && <p className="head-assistant-error" role="alert">{assistantError}</p>}
-                      {showAssistantHelp && <p className="head-assistant-message">{t("head.helpText")}</p>}
+                      {showAssistantHelp && <p className="head-assistant-message">{t(isReadOnly ? "staff.readOnlyHelp" : "head.helpText")}</p>}
                       <div className="head-assistant-actions">
-                        <button className="head-assistant-action" type="button" onClick={() => openCreate("governmentEmployee")}>{t("assistant.add")}</button>
+                        {!isReadOnly && <button className="head-assistant-action" type="button" onClick={() => openCreate("governmentEmployee")}>{t("assistant.add")}</button>}
                         <button className="head-assistant-action" type="button" onClick={() => addAssistantReply(t("assistant.summary", {
                           total: staff.length,
                           members: t(staff.length === 1 ? "assistant.member" : "assistant.members"),
@@ -503,6 +517,16 @@ export default function HeadWorkspace({ user, onLogout }) {
               </>
             ) : <div className="staff-empty"><h3>{t("head.noDepartmentTitle")}</h3><p>{t("common.adminAssign")}</p></div>}
           </>
+        ) : isReadOnly && activeView === "department" ? (
+          <>
+            <div className="staff-title-row"><div><p className="staff-eyebrow">{t("head.workspace")}</p><h1>{t("common.department")}</h1><p>{t("staff.departmentDescription")}</p></div></div>
+            {department ? <div className="staff-department-overview">
+              <article className="staff-readonly-panel"><p className="staff-eyebrow">{department.code}</p><h2>{department.name}</h2><p className="staff-department-category">{department.category}</p><p className="staff-department-description">{department.description}</p></article>
+              <section className="staff-head-directory"><p className="staff-eyebrow">{t("staff.departmentHeads")}</p>
+                {department.heads?.length ? department.heads.map((head) => <article className="staff-readonly-panel" key={head.id || head._id}><p className="staff-eyebrow">{t("login.head")}</p><h2>{head.name || head.officialName}</h2>{(head.email || head.officialEmail) && <a href={`mailto:${head.email || head.officialEmail}`}>{head.email || head.officialEmail}</a>}</article>) : <div className="staff-empty"><h3>{t("staff.noHeads")}</h3></div>}
+              </section>
+            </div> : <div className="staff-empty"><h3>{t("head.noDepartmentTitle")}</h3></div>}
+          </>
         ) : (
           <>
             <div className="staff-title-row"><div><p className="staff-eyebrow">{t("head.workspace")}</p><h1>{t("head.directoryTitle")}</h1><p>{t("head.directoryDescription")}</p></div>
@@ -516,17 +540,17 @@ export default function HeadWorkspace({ user, onLogout }) {
               {roles.map((role) => <button key={role.id} type="button" role="tab" aria-selected={activeRole === role.id} className={activeRole === role.id ? "staff-tab selected" : "staff-tab"} onClick={() => setActiveRole(role.id)}>{t(role.pluralKey)}<span>{staff.filter((account) => account.role === role.id).length}</span></button>)}
             </div>
             {filteredVisibleStaff.length ? (
-              <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>{t("member.name")}</th><th>{t("head.contact")}</th><th>{t("head.username")}</th><th>{t("common.actions")}</th></tr></thead><tbody>
-                {filteredVisibleStaff.map((account) => <tr key={account._id}><td><strong>{account.name}</strong><small>{t(activeRoleInfo.labelKey)}</small></td><td><span>{account.email}</span><small>{account.phone}</small></td><td>{account.username}</td><td><div className="staff-row-actions"><button type="button" onClick={() => { setEditingStaff(account); setShowForm(true); }}>{t("common.edit")}</button><button type="button" className="staff-delete" onClick={() => deleteStaff(account)}>{t("common.delete")}</button></div></td></tr>)}
+              <div className="staff-table-wrap"><table className="staff-table"><thead><tr><th>{t("member.name")}</th><th>{t("head.contact")}</th>{!isReadOnly && <><th>{t("head.username")}</th><th>{t("common.actions")}</th></>}</tr></thead><tbody>
+                {filteredVisibleStaff.map((account) => <tr key={account._id}><td><strong>{account.name}</strong><small>{t(activeRoleInfo.labelKey)}</small></td><td><span>{account.email}</span><small>{account.phone}</small></td>{!isReadOnly && <><td>{account.username}</td><td><div className="staff-row-actions"><button type="button" onClick={() => { setEditingStaff(account); setShowForm(true); }}>{t("common.edit")}</button><button type="button" className="staff-delete" onClick={() => deleteStaff(account)}>{t("common.delete")}</button></div></td></>}</tr>)}
               </tbody></table></div>
-            ) : <div className="staff-empty"><h3>{searchQuery ? t("head.noMatching") : t("head.noRoleMembers", { role: t(activeRoleInfo.pluralKey).toLowerCase() })}</h3><p>{searchQuery ? t("head.searchHint") : t("head.addFirst", { department: department?.name })}</p>{!searchQuery && <button className="staff-secondary" type="button" disabled={!department} onClick={() => openCreate(activeRole)}>{t(activeRole === "governmentEmployee" ? "head.addEmployee" : "head.addDeveloper")}</button>}</div>}
+            ) : <div className="staff-empty"><h3>{searchQuery ? t("head.noMatching") : t("head.noRoleMembers", { role: t(activeRoleInfo.pluralKey).toLowerCase() })}</h3><p>{searchQuery ? t("head.searchHint") : isReadOnly ? t("staff.noTeamMembers") : t("head.addFirst", { department: department?.name })}</p>{!isReadOnly && !searchQuery && <button className="staff-secondary" type="button" disabled={!department} onClick={() => openCreate(activeRole)}>{t(activeRole === "governmentEmployee" ? "head.addEmployee" : "head.addDeveloper")}</button>}</div>}
           </section>
         ) : <div className="staff-empty"><h3>{t("head.noDepartmentTitle")}</h3><p>{t("common.adminAssign")}</p></div>}
           </>
         )}
       </section>
-      {showProfile && <HeadProfileModal user={profileUser} onClose={() => setShowProfile(false)} onSaved={(updatedUser) => { setProfileUser(updatedUser); setShowProfile(false); }} />}
-      {showForm && department && <StaffForm department={department} staff={editingStaff} defaultRole={activeRole} onClose={() => setShowForm(false)} onSaved={saveComplete} />}
+      {showProfile && !isReadOnly && <HeadProfileModal user={profileUser} onClose={() => setShowProfile(false)} onSaved={(updatedUser) => { setProfileUser(updatedUser); setShowProfile(false); }} />}
+      {showForm && !isReadOnly && department && <StaffForm department={department} staff={editingStaff} defaultRole={activeRole} onClose={() => setShowForm(false)} onSaved={saveComplete} />}
       </div>
     </main>
   );

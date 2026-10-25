@@ -22,7 +22,9 @@ export async function requireAuth(request, response, next) {
       request.user = { id: head.id, role: "departmentHead", name: head.officialName, email: head.officialEmail, phone: head.phone || "", username: head.username };
       request.departments = departments;
     } else if (["governmentEmployee", "smartCityWorker"].includes(payload.role)) {
-      const account = await StaffAccount.findById(payload.sub).populate("department", "name code");
+      const account = await StaffAccount.findById(payload.sub)
+        .populate("department", "name code")
+        .populate("departmentHead", "officialName officialEmail status");
       if (!account || account.status !== "active" || account.role !== payload.role) {
         return response.status(401).json({ message: "This account is unavailable." });
       }
@@ -33,6 +35,7 @@ export async function requireAuth(request, response, next) {
         email: account.email,
         username: account.username,
         department: account.department,
+        departmentHead: account.departmentHead,
       };
       request.departments = [];
     } else {
