@@ -17,11 +17,63 @@ const emptyStaff = { name: "", phone: "", email: "", username: "", password: "",
 function AssistantIcon({ name }) {
   const paths = {
     attach: <><path d="m21.4 11.6-8.5 8.5a5 5 0 0 1-7.1-7.1l9.2-9.2a3.5 3.5 0 0 1 5 5l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></>,
+    spark: <><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m18.5 15 1 2.5L22 18.5l-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" /></>,
+    home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
+    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    plus: <path d="M12 5v14M5 12h14" />,
+    userPlus: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M16 11h6" /></>,
+    logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5" /></>,
     mic: <><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /></>,
     stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
     close: <path d="m18 6-12 12M6 6l12 12" />,
   };
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
+function HeadProfileModal({ user, onClose, onSaved }) {
+  const { t } = useLanguage();
+  const [form, setForm] = useState({ name: user.name || "", email: user.email || "", phone: user.phone || "", username: user.username || "", password: "" });
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    setIsSaving(true);
+    try {
+      const data = await apiRequest("/api/auth/profile", { method: "PATCH", body: JSON.stringify(form) });
+      onSaved(data.user);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <div className="staff-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="staff-modal head-profile-modal" role="dialog" aria-modal="true" aria-labelledby="head-profile-title">
+        <header className="staff-modal-heading">
+          <div><p className="staff-eyebrow">{t("head.role")}</p><h2 id="head-profile-title">{t("profile.title")}</h2></div>
+          <button className="staff-icon-button" type="button" aria-label={t("member.closeForm")} onClick={onClose}>×</button>
+        </header>
+        <form onSubmit={submit}>
+          <div className="staff-form-grid">
+            <label>{t("member.fullName")}<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={120} required /></label>
+            <label>{t("member.email")}<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} maxLength={254} required /></label>
+            <label>{t("member.phone")}<input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} maxLength={30} /></label>
+            <label>{t("head.username")}<input value={form.username} onChange={(event) => setForm((current) => ({ ...current, username: event.target.value.toLowerCase() }))} pattern="[a-z0-9][a-z0-9._\-]{2,31}" minLength={3} maxLength={32} required /></label>
+            <label>{t("member.newPassword")}<input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} minLength={8} maxLength={72} autoComplete="new-password" /><small>{t("member.keepPassword")}</small></label>
+          </div>
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <div className="staff-modal-actions">
+            <button className="staff-cancel" type="button" onClick={onClose}>{t("member.cancel")}</button>
+            <button className="staff-primary" type="submit" disabled={isSaving}>{isSaving ? t("profile.saving") : t("profile.save")}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
 }
 
 function StaffForm({ department, staff, defaultRole, onClose, onSaved }) {
@@ -89,16 +141,21 @@ export default function HeadWorkspace({ user, onLogout }) {
   const [activeRole, setActiveRole] = useState("governmentEmployee");
   const [editingStaff, setEditingStaff] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [profileUser, setProfileUser] = useState(user);
   const [activeView, setActiveView] = useState("chat");
-  const [showNavigation, setShowNavigation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAssistantHelp, setShowAssistantHelp] = useState(false);
+  const [isAssistantMenuOpen, setIsAssistantMenuOpen] = useState(false);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantMessages, setAssistantMessages] = useState([]);
   const [assistantAttachments, setAssistantAttachments] = useState([]);
   const [assistantError, setAssistantError] = useState("");
+  const [activePromptIndex, setActivePromptIndex] = useState(null);
+  const [isPromptHistoryOpen, setIsPromptHistoryOpen] = useState(false);
   const [isAssistantLoading, setIsAssistantLoading] = useState(false);
   const [isAssistantRecording, setIsAssistantRecording] = useState(false);
   const assistantFileInputRef = useRef(null);
@@ -157,19 +214,16 @@ export default function HeadWorkspace({ user, onLogout }) {
   const workerCount = staff.filter((account) => account.role === "smartCityWorker").length;
   const matchingStaff = staff.filter((account) => [account.name, account.username, account.email, account.phone].some((value) => value?.toLowerCase().includes(searchQuery.trim().toLowerCase())));
   const filteredVisibleStaff = visibleStaff.filter((account) => matchingStaff.some((matchingAccount) => matchingAccount._id === account._id));
-  const employeeShare = staff.length ? employeeCount / staff.length * 100 : 0;
-  const recentStaff = [...matchingStaff].slice(-4).reverse();
   const promptHistory = assistantMessages
     .map((message, index) => ({ ...message, index }))
     .filter((message) => message.role === "user" && message.content.trim())
     .slice(-12)
     .reverse();
-  const userInitials = user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  const userInitials = profileUser.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   function openCreate(role) {
     setActiveRole(role);
     setEditingStaff(null);
-    setShowNavigation(false);
     setActiveView("members");
     if (department) setShowForm(true);
     else setError(t("head.noDepartmentError"));
@@ -302,74 +356,70 @@ export default function HeadWorkspace({ user, onLogout }) {
     setAssistantMessages((current) => [...current, { role: "assistant", content }]);
   }
 
+  function startNewAssistantChat() {
+    setAssistantMessages([]);
+    setAssistantAttachments([]);
+    setAssistantInput("");
+    setAssistantError("");
+    setActivePromptIndex(null);
+    setIsPromptHistoryOpen(false);
+  }
   return (
     <main className="staff-workspace head-workspace">
-      <div className="head-main">
       <header className={`head-topbar${activeView === "chat" ? " head-topbar-chat" : ""}`}>
-        <a className="head-sidebar-brand" href="/" aria-label="SuchnaSetu"><img src="/logo-mark.png" alt="SuchnaSetu" /></a>
-        <div className="head-navigation">
-          <button
-            className="head-menu-toggle"
-            type="button"
-            aria-label={t(showNavigation ? "common.closeNavigation" : "common.openNavigation")}
-            aria-expanded={showNavigation}
-            aria-controls="head-navigation-menu"
-            onClick={() => setShowNavigation((current) => !current)}
-          >
-            <span /><span /><span />
-          </button>
-          {showNavigation && (
-            <nav className="head-menu-panel" id="head-navigation-menu" aria-label={t("head.workspace")}>
-              <p className="head-menu-account"><strong>{user.name}</strong><small>{t("head.role")}</small></p>
-              <button type="button" className={activeView === "chat" ? "selected" : ""} onClick={() => { setActiveView("chat"); setShowNavigation(false); }}>{t("head.chat")}</button>
-              <button type="button" className={activeView === "dashboard" ? "selected" : ""} onClick={() => { setActiveView("dashboard"); setShowNavigation(false); }}>{t("head.dashboard")}</button>
-              <button type="button" className={activeView === "members" ? "selected" : ""} onClick={() => { setActiveView("members"); setShowNavigation(false); }}>{t("head.members")}</button>
-              <div className="head-menu-divider" />
-              <button type="button" onClick={() => openCreate("governmentEmployee")}>{t("head.addEmployee")}</button>
-              <button type="button" onClick={() => openCreate("smartCityWorker")}>{t("head.addDeveloper")}</button>
-              <div className="head-menu-language"><LanguageSwitcher /></div>
-              <button type="button" className="head-menu-signout" onClick={onLogout}>{t("common.signOut")}</button>
-            </nav>
-          )}
-        </div>
-        <div className="head-page-title"><strong>{t(activeView === "chat" ? "head.chat" : activeView === "dashboard" ? "head.overview" : "head.members")}</strong><small>{department?.name || t("head.workspace")}</small></div>
+        <a className="head-topbar-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo-mark.png" alt="" /><span>SuchnaSetu</span></a>
         <div className="head-topbar-spacer" />
         {activeView === "members" && <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>}
         {departments.length > 1 && <label className="department-picker head-department-picker"><span className="visually-hidden">{t("common.department")}</span><select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>{departments.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>}
-        <div className="head-profile">
-          <span className="head-profile-avatar">{userInitials}</span>
-          <span className="head-profile-name"><strong>{user.name}</strong><small>{t("head.role")}</small></span>
-          <button className="staff-logout head-topbar-signout" type="button" onClick={onLogout}>{t("common.signOut")}</button>
-        </div>
       </header>
-      <section className={`staff-content head-content${activeView === "chat" ? " head-content-chat" : ""}`}>
-        {activeView !== "members" ? (
+      <aside className="head-sidebar" aria-label={t("head.workspace")}>
+        <nav className="head-sidebar-nav" aria-label={t("head.workspace")}>
+          <button className={`head-side-link head-assistant-nav-link${activeView === "chat" ? " active" : ""}`} type="button" title={t("head.chat")} aria-label={t("head.chat")} aria-current={activeView === "chat" ? "page" : undefined} data-tooltip={t("head.chat")} onClick={() => setActiveView("chat")}><AssistantIcon name="spark" /></button>
+          <button className={`head-side-link${activeView === "members" ? " active" : ""}`} type="button" title={t("head.members")} aria-label={t("head.members")} aria-current={activeView === "members" ? "page" : undefined} data-tooltip={t("head.members")} onClick={() => setActiveView("members")}><AssistantIcon name="users" /></button>
+          <span className="head-side-divider" aria-hidden="true" />
+          <button className="head-side-link" type="button" title={t("head.addEmployee")} aria-label={t("head.addEmployee")} data-tooltip={t("head.addEmployee")} onClick={() => openCreate("governmentEmployee")}><AssistantIcon name="plus" /></button>
+          <button className="head-side-link" type="button" title={t("head.addDeveloper")} aria-label={t("head.addDeveloper")} data-tooltip={t("head.addDeveloper")} onClick={() => openCreate("smartCityWorker")}><AssistantIcon name="userPlus" /></button>
+        </nav>
+        <div className="head-sidebar-bottom">
+          <div className="head-sidebar-profile-menu">
+            <button className="head-profile-trigger" type="button" title={t("profile.myProfile")} aria-label={t("profile.myProfile")} aria-haspopup="menu" aria-expanded={isProfileMenuOpen} onClick={() => setIsProfileMenuOpen((current) => !current)}><span className="head-sidebar-initials">{userInitials}</span></button>
+            {isProfileMenuOpen && <div className="head-profile-menu" role="menu">
+              <div className="head-profile-menu-language" role="none"><LanguageSwitcher /></div>
+              <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); setShowProfile(true); }}>{t("profile.edit")}</button>
+              <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); onLogout(); }}>{t("common.signOut")}</button>
+            </div>}
+          </div>
+        </div>
+      </aside>
+      <div className="head-main">
+      <section className={`staff-content head-content${activeView === "chat" ? " head-content-chat" : ""}${isPromptHistoryOpen ? " head-content-history-open" : ""}`}>
+        {activeView === "chat" ? (
           <>
-            <div className="staff-title-row head-title-row"><div><p className="staff-eyebrow">{t("head.workspace")}</p><h1>{t("head.overview")}</h1></div>
-            </div>
             {error && <p className="auth-error staff-page-error" role="alert">{error}</p>}
             {isLoading ? <div className="staff-empty">{t("head.loading")}</div> : departments.length ? (
               <>
-                <div className="dashboard-metrics head-dashboard-metrics">
-                  <article className="dashboard-metric head-metric"><span>{t("head.team")}</span><strong>{staff.length}</strong><small>{t("head.inDepartment", { department: department?.name || t("common.department") })}</small><span className="head-metric-icon" aria-hidden="true">♧</span></article>
-                  <article className="dashboard-metric head-metric"><span>{t("head.governmentEmployees")}</span><strong>{employeeCount}</strong><small>{staff.length ? t("head.percentTeam", { percent: Math.round(employeeCount / staff.length * 100) }) : t("head.noMembers")}</small><span className="head-metric-icon" aria-hidden="true">▤</span></article>
-                  <article className="dashboard-metric head-metric"><span>{t("head.smartDevelopers")}</span><strong>{workerCount}</strong><small>{workerCount ? t("head.activeTeam") : t("head.inviteDeveloper")}</small><span className="head-metric-icon" aria-hidden="true">⌘</span></article>
-                </div>
-                <div className="head-dashboard-grid">
-                  <aside className="head-prompt-history" aria-label={t("head.promptHistory")}>
+                <div className="head-chat-grid">
+                  <button className={`head-history-backdrop${isPromptHistoryOpen ? " head-history-backdrop-open" : ""}`} type="button" aria-label={t("common.close")} aria-hidden={!isPromptHistoryOpen} tabIndex={isPromptHistoryOpen ? 0 : -1} onClick={() => setIsPromptHistoryOpen(false)} />
+                  <aside id="head-prompt-history" className={`head-prompt-history${isPromptHistoryOpen ? " head-prompt-history-mobile-open" : ""}`} aria-label={t("head.promptHistory")}>
                     <div className="head-prompt-history-heading">
                       <span className="head-prompt-history-icon" aria-hidden="true">↺</span>
                       <span><strong>{t("head.promptHistory")}</strong><small>{t("head.recentPrompts")}</small></span>
+                      <button className="head-prompt-history-close" type="button" aria-label={t("common.close")} onClick={() => setIsPromptHistoryOpen(false)}><AssistantIcon name="close" /></button>
                     </div>
+                    <button className="head-new-chat" type="button" onClick={startNewAssistantChat}>
+                      <AssistantIcon name="plus" />
+                      <span>{t("chat.new")}</span>
+                    </button>
                     {promptHistory.length ? (
                       <div className="head-prompt-history-list">
                         {promptHistory.map((prompt) => (
                           <button
-                            className="head-prompt-history-item"
+                            className={`head-prompt-history-item${activePromptIndex === prompt.index ? " active" : ""}`}
                             type="button"
                             key={`${prompt.index}-${prompt.content}`}
                             title={prompt.content}
-                            onClick={() => setAssistantInput(prompt.content)}
+                            aria-pressed={activePromptIndex === prompt.index}
+                            onClick={() => { setActivePromptIndex(prompt.index); setAssistantInput(prompt.content); setIsPromptHistoryOpen(false); }}
                           >
                             <span aria-hidden="true">↗</span>{prompt.content}
                           </button>
@@ -377,30 +427,18 @@ export default function HeadWorkspace({ user, onLogout }) {
                       </div>
                     ) : <p className="head-prompt-history-empty">{t("head.noPromptHistory")}</p>}
                   </aside>
-                  <div className="head-dashboard-primary">
-                    <section className="dashboard-chart-panel head-composition-panel">
-                      <div className="dashboard-panel-heading"><div><h2>{t("head.teamComposition")}</h2></div><span>{department?.code}</span></div>
-                      <div className="head-composition-content" aria-label={`${t("head.teamComposition")}: ${t("head.teamCompositionLabel", { employees: employeeCount, developers: workerCount })}`}>
-                        <div className="head-donut" style={{ "--employee-share": `${employeeShare}%` }}><strong>{staff.length}</strong></div>
-                        <div className="head-composition-legend">
-                          <div><i className="legend-employee" /><span>{t("head.governmentEmployees")}</span><strong>{employeeCount}</strong></div>
-                          <div><i className="legend-developer" /><span>{t("head.developers")}</span><strong>{workerCount}</strong></div>
-                        </div>
-                      </div>
-                    </section>
-                    <section className="head-recent-panel">
-                      <div className="head-recent-heading"><h2>{t("head.recentMembers")}</h2><button type="button" onClick={() => setActiveView("members")}>{t("head.viewAll")} <span aria-hidden="true">→</span></button></div>
-                      {recentStaff.length ? <div className="head-recent-list">{recentStaff.map((member) => <article className="head-recent-member" key={member._id}><span className="head-member-avatar">{member.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><span className="head-member-copy"><strong>{member.name}</strong><small>{t(roles.find((item) => item.id === member.role)?.labelKey || "common.employee")}</small></span><span className="head-member-status">{t("common.active")}</span></article>)}</div> : <div className="head-recent-empty">{searchQuery ? t("head.noMatch") : t("head.recentEmpty")}</div>}
-                    </section>
-                  </div>
                   <aside className="head-assistant-panel" aria-label={t("assistant.name")}>
                     <div className="head-assistant-heading">
                       <span className="head-assistant-mark" aria-hidden="true"><img src="/logo-mark.png" alt="" /></span>
                       <span className="head-assistant-heading-copy"><strong>{t("assistant.name")}</strong><small><i />{t("assistant.online")}</small></span>
-                      <button className="head-assistant-menu" type="button" aria-label={t("assistant.help")} onClick={() => setShowAssistantHelp((current) => !current)}>•••</button>
+                      <button className="head-assistant-menu" type="button" aria-label={t("assistant.help")} aria-haspopup="menu" aria-expanded={isAssistantMenuOpen} onClick={() => setIsAssistantMenuOpen((current) => !current)}>•••</button>
+                      {isAssistantMenuOpen && <div className="head-assistant-overflow-menu" role="menu">
+                        <button type="button" role="menuitem" onClick={() => { setIsPromptHistoryOpen((current) => !current); setIsAssistantMenuOpen(false); }}>{t("head.promptHistory")}</button>
+                        <button type="button" role="menuitem" onClick={() => { setShowAssistantHelp((current) => !current); setIsAssistantMenuOpen(false); }}>{t(showAssistantHelp ? "assistant.hideHelp" : "assistant.help")}</button>
+                      </div>}
                     </div>
                     <div className="head-assistant-messages" aria-live="polite">
-                      <p className="head-assistant-message head-assistant-welcome">{t("assistant.greeting", { name: user.name })}</p>
+                      <p className="head-assistant-message head-assistant-welcome">{t("assistant.greeting", { name: profileUser.name })}</p>
                       <p className="head-assistant-message head-assistant-summary">{t("assistant.summary", {
                         total: staff.length,
                         members: t(staff.length === 1 ? "assistant.member" : "assistant.members"),
@@ -487,6 +525,7 @@ export default function HeadWorkspace({ user, onLogout }) {
           </>
         )}
       </section>
+      {showProfile && <HeadProfileModal user={profileUser} onClose={() => setShowProfile(false)} onSaved={(updatedUser) => { setProfileUser(updatedUser); setShowProfile(false); }} />}
       {showForm && department && <StaffForm department={department} staff={editingStaff} defaultRole={activeRole} onClose={() => setShowForm(false)} onSaved={saveComplete} />}
       </div>
     </main>

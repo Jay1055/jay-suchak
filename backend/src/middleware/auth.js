@@ -16,10 +16,10 @@ export async function requireAuth(request, response, next) {
       request.user = { id: admin.id, role: "admin", name: admin.email, email: admin.email };
       request.departments = [];
     } else if (payload.role === "departmentHead") {
-      const head = await DepartmentHead.findById(payload.sub).select("officialName officialEmail username status");
+      const head = await DepartmentHead.findById(payload.sub).select("officialName officialEmail phone username status");
       if (!head || head.status !== "active") return response.status(401).json({ message: "This account is unavailable." });
       const departments = await Department.find({ heads: head._id }).select("name code").sort({ name: 1 }).lean();
-      request.user = { id: head.id, role: "departmentHead", name: head.officialName, email: head.officialEmail, username: head.username };
+      request.user = { id: head.id, role: "departmentHead", name: head.officialName, email: head.officialEmail, phone: head.phone || "", username: head.username };
       request.departments = departments;
     } else if (["governmentEmployee", "smartCityWorker"].includes(payload.role)) {
       const account = await StaffAccount.findById(payload.sub).populate("department", "name code");

@@ -32,6 +32,8 @@ function Icon({ name, size = 20 }) {
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     arrow: <path d="M7 17 17 7M7 7h10v10" />,
     close: <path d="m18 6-12 12M6 6l12 12" />,
+    home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
+    collapse: <><path d="m15 18-6-6 6-6" /><path d="M4 5v14" /></>,
     spark: <><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z" /><path d="m19 14 1.2 2.8L23 18l-2.8 1.2L19 22l-1.2-2.8L15 18l2.8-1.2L19 14Z" /></>,
   };
 
@@ -41,19 +43,30 @@ function Icon({ name, size = 20 }) {
 function StaffHome({ user, onLogout, onOpenAssistant }) {
   const { t } = useLanguage();
   return (
-    <main className="staff-workspace">
-      <header className="staff-topbar">
-        <a className="staff-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo.png" alt="SuchnaSetu" /></a>
-        <nav className="staff-nav" aria-label={t("staff.workspaceNavigation")}>
-          <button className="staff-nav-item staff-assistant-link" type="button" onClick={onOpenAssistant}><Icon name="spark" size={16} />{t("assistant.name")}</button>
+    <main className="staff-workspace staff-workspace-with-sidebar">
+      <aside className="staff-home-sidebar" aria-label={t("staff.workspaceNavigation")}>
+        <nav className="staff-home-nav">
+          <a className="staff-home-nav-item active" href="/" aria-current="page"><Icon name="home" size={17} /><span>{t("common.home")}</span></a>
+          <button className="staff-home-nav-item" type="button" onClick={onOpenAssistant}><Icon name="spark" size={17} /><span>{t("assistant.name")}</span></button>
         </nav>
-        <div className="staff-topbar-right"><LanguageSwitcher /><span><strong>{user.name}</strong><small>{user.role === "governmentEmployee" ? t("staff.roleEmployee") : t("staff.roleDeveloper")}</small></span><button className="staff-logout" type="button" onClick={onLogout}>{t("common.signOut")}</button></div>
-      </header>
-      <section className="staff-content staff-profile-home">
-        <p className="staff-eyebrow">{t("staff.account")}</p>
-        <h1>{t("staff.welcome", { name: user.name })}</h1>
-        <p>{user.department?.name || t("staff.noDepartment")} · {user.department?.code || ""}</p>
-      </section>
+        <button className="staff-home-logout" type="button" onClick={onLogout}>{t("common.signOut")}</button>
+      </aside>
+      <div className="staff-home-main">
+        <header className="staff-topbar staff-home-topbar">
+          <a className="staff-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo.png" alt="SuchnaSetu" /></a>
+          <p className="staff-home-context">SuchnaSetu <span>/</span> {t("common.home")}</p>
+          <div className="staff-topbar-right">
+            <LanguageSwitcher />
+            <span><strong>{user.name}</strong><small>{user.role === "governmentEmployee" ? t("staff.roleEmployee") : t("staff.roleDeveloper")}</small></span>
+          </div>
+        </header>
+        <section className="staff-content staff-profile-home">
+          <p className="staff-eyebrow">{t("staff.account")}</p>
+          <h1>{t("staff.welcome", { name: user.name })}</h1>
+          <p>{user.department?.name || t("staff.noDepartment")} · {user.department?.code || ""}</p>
+          <button className="staff-home-assistant-action" type="button" onClick={onOpenAssistant}><Icon name="spark" size={18} />{t("staff.openAssistant")}</button>
+        </section>
+      </div>
     </main>
   );
 }
@@ -61,17 +74,20 @@ function StaffHome({ user, onLogout, onOpenAssistant }) {
 function LoginWelcomeAnimation({ onClose }) {
   const { t } = useLanguage();
   return (
-    <div className="welcome-animation-fullscreen" role="dialog" aria-modal="true" aria-label={t("welcome.aria")}>
-      <video
-        className="welcome-animation-video"
-        src="/welcome-animation.mp4"
-        autoPlay
-        muted
-        playsInline
-        preload="auto"
-        onEnded={onClose}
-        onError={onClose}
-      />
+    <div className="welcome-animation-backdrop" role="dialog" aria-modal="true" aria-label={t("welcome.aria")}>
+      <div className="welcome-animation-panel">
+        <video
+          className="welcome-animation-video"
+          src="/welcome-animation.mp4"
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          onEnded={onClose}
+          onError={onClose}
+        />
+
+      </div>
     </div>
   );
 }
@@ -84,7 +100,8 @@ function App() {
     const [isRecording, setIsRecording] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia("(min-width: 761px)").matches);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [user, setUser] = useState(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [showWelcomeAnimation, setShowWelcomeAnimation] = useState(false);
@@ -132,7 +149,16 @@ function App() {
     setShowWelcomeAnimation(true);
   }
 
-  if (isCheckingSession) return <main className="auth-loading"><LanguageSwitcher /><span aria-live="polite">{t("common.loadingSession")}</span></main>;
+  if (isCheckingSession) return (
+    <main className="auth-loading" aria-busy="true">
+      <LanguageSwitcher />
+      <div className="auth-loading-status" role="status">
+        <span className="auth-loading-mark" aria-hidden="true"><img src="/logo-mark.png" alt="" /></span>
+        <span>{t("common.loadingSession")}</span>
+        <span className="auth-loading-line" aria-hidden="true" />
+      </div>
+    </main>
+  );
   if (!user) return <LoginPanel onLogin={handleLogin} />;
   if (user?.role === "admin" && !showAssistant) return (
     <>
@@ -297,9 +323,16 @@ function App() {
       if (typeof data.answer !== "string" || !data.answer.trim()) {
         throw new Error(t("chat.apiInvalid"));
       }
+      const sources = Array.isArray(data.sources)
+        ? data.sources
+        : Array.isArray(data.citations)
+          ? data.citations
+          : Array.isArray(data.documents)
+            ? data.documents
+            : [];
       setMessages((current) => [
         ...current,
-        { id: crypto.randomUUID(), role: "assistant", content: data.answer.trim() },
+        { id: crypto.randomUUID(), role: "assistant", content: data.answer.trim(), sources },
       ]);
     } catch (requestError) {
       setError(
@@ -382,11 +415,11 @@ function App() {
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      <aside className={`sidebar${sidebarOpen ? " sidebar-open" : ""}`}>
+      <aside className={`sidebar${sidebarOpen ? " sidebar-open" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
         <div className="sidebar-top">
-          <a className="brand" href="#" aria-label="SuchnaSetu home" onClick={(event) => event.preventDefault()}>
-            <img src="/logo.png" alt="SuchnaSetu" />
-          </a>
+          <button className="sidebar-collapse-button" type="button" aria-label={t(sidebarCollapsed ? "common.expandNavigation" : "common.collapseNavigation")} title={t(sidebarCollapsed ? "common.expandNavigation" : "common.collapseNavigation")} onClick={() => setSidebarCollapsed((current) => !current)}>
+            <Icon name="collapse" />
+          </button>
           <button className="icon-button mobile-close" aria-label={t("common.closeNavigation")} onClick={() => setSidebarOpen(false)}>
             <Icon name="close" />
           </button>
@@ -404,9 +437,9 @@ function App() {
             <span>{t("chat.assistant")}</span>
             <span className="active-dot" />
           </button>
-          <button className="nav-item" onClick={startNewChat}>
-            <span className="nav-item-icon">◷</span>
-            <span>{t("chat.recent")}</span>
+          <button className="nav-item" onClick={() => setShowAssistant(false)}>
+            <span className="nav-item-icon"><Icon name="home" size={17} /></span>
+            <span>{t("common.home")}</span>
           </button>
         </div>
 
@@ -424,6 +457,7 @@ function App() {
 
       <main className="main-panel">
         <header className="topbar">
+          <a className="assistant-topbar-brand" href="#" aria-label="SuchnaSetu home" onClick={(event) => event.preventDefault()}><img src="/logo.png" alt="SuchnaSetu" /></a>
           <button className="icon-button menu-button" aria-label={t("common.openNavigation")} onClick={() => setSidebarOpen(true)}>
             <Icon name="menu" />
           </button>
@@ -507,8 +541,25 @@ function App() {
                       <div className="message-avatar user-avatar">G</div>
                     )}
                     <div className="message-body">
-                      <div className="message-author">{message.role === "assistant" ? "SuchnaSetu" : t("chat.you")}</div>
+                      <div className="message-author">{message.role === "assistant" ? "Suchak" : t("chat.you")}</div>
                       {message.content && <p>{message.content}</p>}
+                      {message.sources?.length > 0 && (
+                        <section className="message-sources" aria-label={t("chat.sources")}>
+                          <strong>{t("chat.sources")}</strong>
+                          <ol>
+                            {message.sources.map((source, sourceIndex) => {
+                              const title = typeof source === "string" ? source : source.title || source.name || source.filename || source.document || t("chat.sourceFallback", { number: sourceIndex + 1 });
+                              const page = typeof source === "object" && source?.page != null ? source.page : source?.page_number;
+                              const url = typeof source === "object" ? source.url || source.link : null;
+                              return (
+                                <li key={`${title}-${sourceIndex}`}>
+                                  {url ? <a href={url} target="_blank" rel="noreferrer">{title}{page != null ? ` · ${t("chat.page", { page })}` : ""}</a> : <span>{title}{page != null ? ` · ${t("chat.page", { page })}` : ""}</span>}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        </section>
+                      )}
                       {message.attachments?.length > 0 && (
                         <div className="message-attachments" aria-label={t("chat.attachmentsSelected")}>
                           {message.attachments.map((attachment) => (
@@ -526,8 +577,8 @@ function App() {
                   <article className="message message-assistant">
                     <img className="message-avatar" src="/logo.png" alt="" />
                     <div className="message-body">
-                      <div className="message-author">SuchnaSetu</div>
-                      <div className="typing-indicator" aria-label={t("assistant.thinking")}><span /><span /><span /></div>
+                      <div className="message-author">Suchak</div>
+                      <div className="typing-indicator" role="status" aria-label={t("assistant.thinking")}> <span /><span /><span /><small>{t("assistant.thinking")}</small></div>
                     </div>
                   </article>
                 )}
