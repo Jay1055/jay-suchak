@@ -2,8 +2,8 @@
 
 :root {
   font-family: "Inter", "Nirmala UI", "Noto Sans Devanagari", "Noto Sans Gujarati", sans-serif;
-  color: #1b2f46;
-  background: #f7f8fa;
+  color: #14283d;
+  background: #f5f7f9;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -11,22 +11,22 @@
   font-optical-sizing: auto;
   font-size: 14px;
   font-weight: 400;
-  --navy: #12385b;
-  --navy-dark: #0b2948;
-  --blue: #4f78a5;
-  --blue-soft: #edf3f8;
-  --gold: #c99543;
+  --navy: #0e2f4d;
+  --navy-dark: #081f36;
+  --blue: #3f668e;
+  --blue-soft: #e5edf5;
+  --gold: #b77c28;
   --orange: var(--gold);
-  --orange-dark: #9b6c26;
-  --text: #1b2f46;
-  --muted: #68788a;
-  --border: #e5e8ec;
+  --orange-dark: #805315;
+  --text: #14283d;
+  --muted: #526579;
+  --border: #d3dce5;
   --surface: #fff;
-  --page: #f7f8fa;
+  --page: #f5f7f9;
   --radius-sm: 9px;
   --radius-md: 14px;
   --shadow-soft: 0 10px 28px rgba(18, 48, 79, 0.07);
-  --focus-ring: 0 0 0 3px rgba(201, 149, 67, 0.22);
+  --focus-ring: 0 0 0 3px rgba(183, 124, 40, 0.28);
 }
 
 * {

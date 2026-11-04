@@ -6,6 +6,40 @@ const CHAT_API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/ask"
 const MAX_ASSISTANT_ATTACHMENTS = 5;
 const MAX_ASSISTANT_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 const MAX_TOTAL_ASSISTANT_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+const MAX_PROMPT_HISTORY = 12;
+
+function getPromptHistoryStorageKey(user) {
+  const identity = user.id || user.email || "anonymous";
+  return `suchnasetu-prompt-history:${encodeURIComponent(identity)}`;
+}
+
+function readPromptHistory(storageKey) {
+  try {
+    const savedHistory = window.localStorage.getItem(storageKey);
+    if (!savedHistory) return [];
+    const parsedHistory = JSON.parse(savedHistory);
+    if (!Array.isArray(parsedHistory)) throw new Error("Prompt history must be an array.");
+    return parsedHistory.filter((item) =>
+      item &&
+      typeof item.id === "string" &&
+      typeof item.keyword === "string" &&
+      typeof item.prompt === "string",
+    ).slice(0, MAX_PROMPT_HISTORY);
+  } catch (storageError) {
+    console.error("Unable to load SuchnaSetu prompt history.", storageError);
+    return [];
+  }
+}
+
+function getPromptKeyword(prompt) {
+  const firstQuestion = prompt.trim()
+    .replace(/^(?:(?:how\s+(?:do|can)\s+i|how\s+to)\s+)?(?:apply\s+for|get|find|search(?:\s+for)?|know\s+about|learn\s+about)\s+/i, "")
+    .replace(/^(?:what\s+is|(?:can\s+you\s+)?tell\s+me\s+about)\s+/i, "")
+    .replace(/^(?:an?\s+|the\s+)/i, "")
+    .split(/[?.!,\n]/, 1)[0]
+    .trim();
+  return (firstQuestion || prompt.trim()).slice(0, 60);
+}
 
 const roles = [
   { id: "governmentEmployee", labelKey: "common.employee", pluralKey: "head.governmentEmployees" },
@@ -17,12 +51,13 @@ const emptyStaff = { name: "", phone: "", email: "", username: "", password: "",
 function AssistantIcon({ name }) {
   const paths = {
     attach: <><path d="m21.4 11.6-8.5 8.5a5 5 0 0 1-7.1-7.1l9.2-9.2a3.5 3.5 0 0 1 5 5l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></>,
-    spark: <><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" /><path d="m18.5 15 1 2.5L22 18.5l-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" /></>,
+    spark: <><path d="m12 2.8 2.5 6.7 6.7 2.5-6.7 2.5-2.5 6.7-2.5-6.7L2.8 12l6.7-2.5L12 2.8Z" /><path d="m19 2 .7 2.3L22 5l-2.3.7L19 8l-.7-2.3L16 5l2.3-.7L19 2Z" /></>,
     home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
     building: <><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 9h.01M15 9h.01M9 12h.01M15 12h.01" /></>,
-    users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    users: <><circle cx="9" cy="7.5" r="3.5" /><path d="M2.5 20v-1.4a4.6 4.6 0 0 1 4.6-4.6h3.8a4.6 4.6 0 0 1 4.6 4.6V20" /><path d="M16.5 4.2a3.5 3.5 0 0 1 0 6.6M17 14h.8a3.7 3.7 0 0 1 3.7 3.7V20" /></>,
+    history: <><path d="M3.5 8.5a8.5 8.5 0 1 1 .8 8" /><path d="M3.5 3.8v4.8h4.8M12 7v5l3.2 1.8" /></>,
     plus: <path d="M12 5v14M5 12h14" />,
-    userPlus: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M16 11h6" /></>,
+    userPlus: <><path d="M5.2 9.1a5.1 5.1 0 0 1 10.2 0v1.2a5.1 5.1 0 0 1-10.2 0V9.1Z" /><path d="M5.5 7.3 7 4.8l1.5 1.4 1.7-2 1.7 2 1.6-1.1 1.2 2.4" /><circle cx="8.5" cy="9.1" r=".55" fill="currentColor" stroke="none" /><circle cx="12.1" cy="9.1" r=".55" fill="currentColor" stroke="none" /><path d="M8.8 11.5a2 2 0 0 0 3 0M2.8 20a5.3 5.3 0 0 1 5.3-5.3h2.4a5.2 5.2 0 0 1 3.3 1.2" /><circle cx="18.2" cy="18.1" r="4.6" fill="currentColor" stroke="currentColor" /><path d="M18.2 15.8v4.6m-2.3-2.3h4.6" stroke="#fff" /></>,
     logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5" /></>,
     mic: <><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /></>,
     stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
@@ -138,6 +173,7 @@ function StaffForm({ department, staff, defaultRole, onClose, onSaved }) {
 export default function HeadWorkspace({ user, onLogout }) {
   const { language, t } = useLanguage();
   const isReadOnly = ["governmentEmployee", "smartCityWorker"].includes(user.role);
+  const promptHistoryStorageKey = getPromptHistoryStorageKey(user);
   const [departments, setDepartments] = useState([]);
   const [departmentId, setDepartmentId] = useState("");
   const [staff, setStaff] = useState([]);
@@ -155,6 +191,7 @@ export default function HeadWorkspace({ user, onLogout }) {
   const [isAssistantMenuOpen, setIsAssistantMenuOpen] = useState(false);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantMessages, setAssistantMessages] = useState([]);
+  const [promptHistory, setPromptHistory] = useState(() => readPromptHistory(promptHistoryStorageKey));
   const [assistantAttachments, setAssistantAttachments] = useState([]);
   const [assistantError, setAssistantError] = useState("");
   const [activePromptIndex, setActivePromptIndex] = useState(null);
@@ -200,6 +237,13 @@ export default function HeadWorkspace({ user, onLogout }) {
 
   useEffect(() => { loadStaff(); }, [departmentId]);
   useEffect(() => () => assistantRecognitionRef.current?.abort(), []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(promptHistoryStorageKey, JSON.stringify(promptHistory));
+    } catch (storageError) {
+      console.error("Unable to save SuchnaSetu prompt history.", storageError);
+    }
+  }, [promptHistoryStorageKey, promptHistory]);
 
   async function saveComplete() {
     setShowForm(false);
@@ -224,11 +268,6 @@ export default function HeadWorkspace({ user, onLogout }) {
   const workerCount = staff.filter((account) => account.role === "smartCityWorker").length;
   const matchingStaff = staff.filter((account) => [account.name, account.username, account.email, account.phone].some((value) => value?.toLowerCase().includes(searchQuery.trim().toLowerCase())));
   const filteredVisibleStaff = visibleStaff.filter((account) => matchingStaff.some((matchingAccount) => matchingAccount._id === account._id));
-  const promptHistory = assistantMessages
-    .map((message, index) => ({ ...message, index }))
-    .filter((message) => message.role === "user" && message.content.trim())
-    .slice(-12)
-    .reverse();
   const quickRequests = [
     { label: t("head.quickAadhaar"), prompt: t("head.quickAadhaarPrompt") },
     { label: t("head.quickBirthCertificate"), prompt: t("head.quickBirthCertificatePrompt") },
@@ -338,6 +377,12 @@ export default function HeadWorkspace({ user, onLogout }) {
     if ((!text && !pendingAttachments.length) || isAssistantLoading || isAssistantRecording) return;
     const query = text || t("chat.attachmentsOnly");
 
+    if (text) {
+      setPromptHistory((current) => [
+        { id: crypto.randomUUID(), keyword: getPromptKeyword(text), prompt: text },
+        ...current,
+      ].slice(0, MAX_PROMPT_HISTORY));
+    }
     setAssistantMessages((current) => [...current, {
       role: "user",
       content: text,
@@ -420,7 +465,7 @@ export default function HeadWorkspace({ user, onLogout }) {
                   <button className={`head-history-backdrop${isPromptHistoryOpen ? " head-history-backdrop-open" : ""}`} type="button" aria-label={t("common.close")} aria-hidden={!isPromptHistoryOpen} tabIndex={isPromptHistoryOpen ? 0 : -1} onClick={() => setIsPromptHistoryOpen(false)} />
                   <aside id="head-prompt-history" className={`head-prompt-history${isPromptHistoryOpen ? " head-prompt-history-mobile-open" : ""}`} aria-label={t("head.promptHistory")}>
                     <div className="head-prompt-history-heading">
-                      <span className="head-prompt-history-icon" aria-hidden="true">↺</span>
+                      <span className="head-prompt-history-icon" aria-hidden="true"><AssistantIcon name="history" /></span>
                       <span className="head-prompt-history-copy"><strong>{t("head.promptHistory")}</strong><small>{t("head.recentPrompts")}</small></span>
                       <button className="head-prompt-history-close" type="button" aria-label={t("common.close")} onClick={() => setIsPromptHistoryOpen(false)}><AssistantIcon name="close" /></button>
                     </div>
@@ -432,14 +477,14 @@ export default function HeadWorkspace({ user, onLogout }) {
                       <div className="head-prompt-history-list">
                         {promptHistory.map((prompt) => (
                           <button
-                            className={`head-prompt-history-item${activePromptIndex === prompt.index ? " active" : ""}`}
+                            className={`head-prompt-history-item${activePromptIndex === prompt.id ? " active" : ""}`}
                             type="button"
-                            key={`${prompt.index}-${prompt.content}`}
-                            title={prompt.content}
-                            aria-pressed={activePromptIndex === prompt.index}
-                            onClick={() => { setActivePromptIndex(prompt.index); setAssistantInput(prompt.content); setIsPromptHistoryOpen(false); }}
+                            key={prompt.id}
+                            title={prompt.prompt}
+                            aria-pressed={activePromptIndex === prompt.id}
+                            onClick={() => { setActivePromptIndex(prompt.id); setAssistantInput(prompt.prompt); setIsPromptHistoryOpen(false); }}
                           >
-                            <span aria-hidden="true">↗</span>{prompt.content}
+                            <span aria-hidden="true">↗</span>{t("head.searchForKeyword", { keyword: prompt.keyword })}
                           </button>
                         ))}
                       </div>
