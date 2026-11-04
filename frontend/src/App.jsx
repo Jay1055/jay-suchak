@@ -382,6 +382,9 @@ function App() {
       )}
       <aside className={`sidebar${sidebarOpen ? " sidebar-open" : ""}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
         <div className="sidebar-top">
+          <a className="brand sidebar-brand" href="#" aria-label="SuchnaSetu home" onClick={(event) => event.preventDefault()}>
+            <img src="/logo.png" alt="SuchnaSetu" />
+          </a>
           <button className="sidebar-collapse-button" type="button" aria-label={t(sidebarCollapsed ? "common.expandNavigation" : "common.collapseNavigation")} title={t(sidebarCollapsed ? "common.expandNavigation" : "common.collapseNavigation")} onClick={() => setSidebarCollapsed((current) => !current)}>
             <Icon name="collapse" />
           </button>
@@ -422,7 +425,6 @@ function App() {
 
       <main className="main-panel">
         <header className="topbar">
-          <a className="assistant-topbar-brand" href="#" aria-label="SuchnaSetu home" onClick={(event) => event.preventDefault()}><img src="/logo.png" alt="SuchnaSetu" /></a>
           <button className="icon-button menu-button" aria-label={t("common.openNavigation")} onClick={() => setSidebarOpen(true)}>
             <Icon name="menu" />
           </button>

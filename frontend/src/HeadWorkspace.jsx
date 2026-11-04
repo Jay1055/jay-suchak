@@ -27,6 +27,7 @@ function AssistantIcon({ name }) {
     mic: <><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" /></>,
     stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
     close: <path d="m18 6-12 12M6 6l12 12" />,
+    arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
   };
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -228,6 +229,12 @@ export default function HeadWorkspace({ user, onLogout }) {
     .filter((message) => message.role === "user" && message.content.trim())
     .slice(-12)
     .reverse();
+  const quickRequests = [
+    { label: t("head.quickAadhaar"), prompt: t("head.quickAadhaarPrompt") },
+    { label: t("head.quickBirthCertificate"), prompt: t("head.quickBirthCertificatePrompt") },
+    { label: t("head.quickPanCard"), prompt: t("head.quickPanCardPrompt") },
+    { label: t("head.quickDrivingLicence"), prompt: t("head.quickDrivingLicencePrompt") },
+  ];
   const userInitials = profileUser.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   function openCreate(role) {
@@ -324,9 +331,9 @@ export default function HeadWorkspace({ user, onLogout }) {
     });
   }
 
-  async function sendAssistantMessage(event) {
-    event.preventDefault();
-    const text = assistantInput.trim();
+  async function sendAssistantMessage(event, prompt) {
+    event?.preventDefault();
+    const text = (prompt ?? assistantInput).trim();
     const pendingAttachments = assistantAttachments;
     if ((!text && !pendingAttachments.length) || isAssistantLoading || isAssistantRecording) return;
     const query = text || t("chat.attachmentsOnly");
@@ -376,7 +383,7 @@ export default function HeadWorkspace({ user, onLogout }) {
   return (
     <main className="staff-workspace head-workspace">
       <header className={`head-topbar${activeView === "chat" ? " head-topbar-chat" : ""}`}>
-        <a className="head-topbar-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo-mark.png" alt="" /><span>SuchnaSetu</span></a>
+        <a className="head-topbar-brand" href="/" aria-label="SuchnaSetu home"><img src="/logo-mark-transparent.png" alt="" /><span>SuchnaSetu</span></a>
         <div className="head-topbar-spacer" />
         {activeView === "members" && !isReadOnly && <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>}
         {departments.length > 1 && <label className="department-picker head-department-picker"><span className="visually-hidden">{t("common.department")}</span><select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>{departments.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>}
@@ -414,7 +421,7 @@ export default function HeadWorkspace({ user, onLogout }) {
                   <aside id="head-prompt-history" className={`head-prompt-history${isPromptHistoryOpen ? " head-prompt-history-mobile-open" : ""}`} aria-label={t("head.promptHistory")}>
                     <div className="head-prompt-history-heading">
                       <span className="head-prompt-history-icon" aria-hidden="true">↺</span>
-                      <span><strong>{t("head.promptHistory")}</strong><small>{t("head.recentPrompts")}</small></span>
+                      <span className="head-prompt-history-copy"><strong>{t("head.promptHistory")}</strong><small>{t("head.recentPrompts")}</small></span>
                       <button className="head-prompt-history-close" type="button" aria-label={t("common.close")} onClick={() => setIsPromptHistoryOpen(false)}><AssistantIcon name="close" /></button>
                     </div>
                     <button className="head-new-chat" type="button" onClick={startNewAssistantChat}>
@@ -438,9 +445,9 @@ export default function HeadWorkspace({ user, onLogout }) {
                       </div>
                     ) : <p className="head-prompt-history-empty">{t("head.noPromptHistory")}</p>}
                   </aside>
-                  <aside className="head-assistant-panel" aria-label={t("assistant.name")}>
+                  <aside className={`head-assistant-panel${assistantMessages.length === 0 ? " head-assistant-panel-empty" : ""}`} aria-label={t("assistant.name")}>
                     <div className="head-assistant-heading">
-                      <span className="head-assistant-mark" aria-hidden="true"><img src="/logo-mark.png" alt="" /></span>
+                      <span className="head-assistant-mark" aria-hidden="true"><img src="/logo-mark-transparent.png" alt="" /></span>
                       <span className="head-assistant-heading-copy"><strong>{t("assistant.name")}</strong><small><i />{t("assistant.online")}</small></span>
                       <button className="head-assistant-menu" type="button" aria-label={t("assistant.help")} aria-haspopup="menu" aria-expanded={isAssistantMenuOpen} onClick={() => setIsAssistantMenuOpen((current) => !current)}>•••</button>
                       {isAssistantMenuOpen && <div className="head-assistant-overflow-menu" role="menu">
@@ -448,17 +455,14 @@ export default function HeadWorkspace({ user, onLogout }) {
                         <button type="button" role="menuitem" onClick={() => { setShowAssistantHelp((current) => !current); setIsAssistantMenuOpen(false); }}>{t(showAssistantHelp ? "assistant.hideHelp" : "assistant.help")}</button>
                       </div>}
                     </div>
-                    <div className="head-assistant-messages" aria-live="polite">
-                      <p className="head-assistant-message head-assistant-welcome">{t("assistant.greeting", { name: profileUser.name })}</p>
-                      <p className="head-assistant-message head-assistant-summary">{t("assistant.summary", {
-                        total: staff.length,
-                        members: t(staff.length === 1 ? "assistant.member" : "assistant.members"),
-                        employees: employeeCount,
-                        employeeLabel: t(employeeCount === 1 ? "assistant.employee" : "assistant.employees"),
-                        developers: workerCount,
-                        developerLabel: t(workerCount === 1 ? "assistant.developer" : "assistant.developers"),
-                      })}</p>
-                      {assistantMessages.map((message, index) => (
+                    <div className={`head-assistant-messages${assistantMessages.length === 0 ? " head-assistant-messages-empty" : ""}`} aria-live="polite">
+                      {assistantMessages.length === 0 ? (
+                        <div className="head-assistant-brand-lockup">
+                          <img src="/logo-mark-transparent.png" alt="" />
+                          <h1>SuchnaSetu</h1>
+                          <p>Your AI Assistant for Government Policies &amp; Procedures</p>
+                        </div>
+                      ) : assistantMessages.map((message, index) => (
                         <div className={`head-assistant-message-wrap ${message.role === "user" ? "from-user" : ""}`} key={`${message.role}-${index}`}>
                           {message.content && <p className={`head-assistant-message ${message.role === "user" ? "from-user" : ""}`}>{message.content}</p>}
                           {message.attachments?.map((attachment) => <span className="head-assistant-file" key={attachment.id} title={attachment.type || ""}><AssistantIcon name="attach" />{attachment.name}</span>)}
@@ -468,7 +472,7 @@ export default function HeadWorkspace({ user, onLogout }) {
                       {isAssistantLoading && <p className="head-assistant-message head-assistant-thinking"><span aria-hidden="true"><i /><i /><i /></span>{t("assistant.thinking")}</p>}
                       {assistantError && <p className="head-assistant-error" role="alert">{assistantError}</p>}
                       {showAssistantHelp && <p className="head-assistant-message">{t(isReadOnly ? "staff.readOnlyHelp" : "head.helpText")}</p>}
-                      <div className="head-assistant-actions">
+                      {assistantMessages.length > 0 && <div className="head-assistant-actions">
                         {!isReadOnly && <button className="head-assistant-action" type="button" onClick={() => openCreate("governmentEmployee")}>{t("assistant.add")}</button>}
                         <button className="head-assistant-action" type="button" onClick={() => addAssistantReply(t("assistant.summary", {
                           total: staff.length,
@@ -479,7 +483,7 @@ export default function HeadWorkspace({ user, onLogout }) {
                           developerLabel: t(workerCount === 1 ? "assistant.developer" : "assistant.developers"),
                         }))}>{t("assistant.teamSummary")}</button>
                         <button className="head-assistant-action" type="button" onClick={() => setShowAssistantHelp((current) => !current)}>{t("assistant.help")}</button>
-                      </div>
+                      </div>}
                     </div>
                     <form className="head-assistant-footer" onSubmit={sendAssistantMessage}>
                       <div className="head-assistant-input-row">
@@ -506,6 +510,25 @@ export default function HeadWorkspace({ user, onLogout }) {
                               <button type="button" aria-label={t("chat.removeAttachment", { name: file.name })} onClick={() => setAssistantAttachments((current) => current.filter((attachment) => attachment.id !== id))}><AssistantIcon name="close" /></button>
                             </span>
                           ))}
+                        </div>
+                      )}
+                      {assistantMessages.length === 0 && (
+                        <div className="head-assistant-quick-prompts" aria-label={t("head.popularRequests")}>
+                          <span className="head-assistant-quick-label">{t("head.popularRequests")}</span>
+                          <div className="head-assistant-quick-list">
+                            {quickRequests.map(({ label, prompt }) => (
+                              <button
+                                className="head-assistant-quick-button"
+                                type="button"
+                                key={label}
+                                disabled={isAssistantLoading || isAssistantRecording}
+                                onClick={() => sendAssistantMessage(null, prompt)}
+                              >
+                                {label}
+                                <AssistantIcon name="arrow" />
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </form>

@@ -1,7 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap");
 
 :root {
-  font-family: "DM Sans", sans-serif;
+  font-family: "Inter", "Nirmala UI", "Noto Sans Devanagari", "Noto Sans Gujarati", sans-serif;
   color: #1b2f46;
   background: #f7f8fa;
   font-synthesis: none;
@@ -9,6 +9,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-optical-sizing: auto;
+  font-size: 14px;
   font-weight: 400;
   --navy: #12385b;
   --navy-dark: #0b2948;
@@ -487,7 +488,7 @@ input:focus-visible {
 .welcome-view h1 {
   margin: 21px 0 12px;
   color: #183b5d;
-  font-family: "Manrope", sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: clamp(36px, 4vw, 48px);
   font-weight: 700;
   letter-spacing: -2px;
