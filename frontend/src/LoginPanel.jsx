@@ -30,22 +30,24 @@ export default function LoginPanel({ onLogin }) {
   return (
     <main className="auth-page">
       <LanguageSwitcher />
+      <div>
+        <img src="/logo-mark-login.png" alt="Logo" height="180"  />
+      </div>
       <section className="auth-panel" aria-labelledby="login-title">
-        <div className="auth-brand-panel">
-          <img className="auth-brand-logo" src="/logo.png" alt="SuchnaSetu — Clarity in Rules. Confidence in Decisions." />
-        </div>
+        {/* <div className="auth-brand-panel" aria-hidden="true">
+          <span className="auth-brand-avatar">
+          
+          </span>
+        </div> */}
         <div className="auth-panel-content">
-          <p className="auth-kicker">{t("login.workspace")}</p>
           <h2 id="login-title">{t("login.title")}</h2>
           <p className="auth-intro">{t("login.intro")}</p>
           <form className="auth-form" onSubmit={submit}>
-            <fieldset className="auth-role-picker">
-              <legend>{t("login.as")}</legend>
-              <div className="auth-role-options">
-                <button className={role === "departmentHead" ? "auth-role-option selected" : "auth-role-option"} type="button" aria-pressed={role === "departmentHead"} onClick={() => setRole("departmentHead")}>{t("login.head")}</button>
-              </div>
-              <label className="auth-staff-role">{t("login.domain")}<select value={["governmentEmployee", "smartCityWorker"].includes(role) ? role : ""} onChange={(event) => setRole(event.target.value)}><option value="" disabled hidden>{t("login.selectDomain")}</option><option value="governmentEmployee">{t("login.employee")}</option><option value="smartCityWorker">{t("login.developer")}</option></select></label>
-            </fieldset>
+            <label>{t("login.as")}<select value={role} onChange={(event) => setRole(event.target.value)}>
+              <option value="departmentHead">{t("login.head")}</option>
+              <option value="governmentEmployee">{t("login.employee")}</option>
+              <option value="smartCityWorker">{t("login.worker")}</option>
+            </select></label>
             <label>{t("login.username")}<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" required /></label>
             <label>{t("login.password")}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
             {error && <p className="auth-error" role="alert">{error}</p>}

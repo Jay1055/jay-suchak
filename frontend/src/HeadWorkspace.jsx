@@ -380,6 +380,14 @@ export default function HeadWorkspace({ user, onLogout }) {
         <div className="head-topbar-spacer" />
         {activeView === "members" && !isReadOnly && <label className="head-search"><span aria-hidden="true">⌕</span><input aria-label={t("head.search")} placeholder={t("head.search")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>}
         {departments.length > 1 && <label className="department-picker head-department-picker"><span className="visually-hidden">{t("common.department")}</span><select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>{departments.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>}
+        <div className="head-sidebar-profile-menu head-topbar-profile-menu">
+          <button className="head-profile-trigger" type="button" title={t("profile.myProfile")} aria-label={t("profile.myProfile")} aria-haspopup="menu" aria-expanded={isProfileMenuOpen} onClick={() => setIsProfileMenuOpen((current) => !current)}><span className="head-sidebar-initials">{userInitials}</span></button>
+          {isProfileMenuOpen && <div className="head-profile-menu" role="menu">
+            <div className="head-profile-menu-language" role="none"><LanguageSwitcher /></div>
+            {!isReadOnly && <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); setShowProfile(true); }}>{t("profile.edit")}</button>}
+            <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); onLogout(); }}>{t("common.signOut")}</button>
+          </div>}
+        </div>
       </header>
       <aside className="head-sidebar" aria-label={t("head.workspace")}>
         <nav className="head-sidebar-nav" aria-label={t("head.workspace")}>
@@ -390,20 +398,9 @@ export default function HeadWorkspace({ user, onLogout }) {
           }
           {!isReadOnly && <>
             <span className="head-side-divider" aria-hidden="true" />
-            <button className="head-side-link" type="button" title={t("head.addEmployee")} aria-label={t("head.addEmployee")} data-tooltip={t("head.addEmployee")} onClick={() => openCreate("governmentEmployee")}><AssistantIcon name="plus" /></button>
-            <button className="head-side-link" type="button" title={t("head.addDeveloper")} aria-label={t("head.addDeveloper")} data-tooltip={t("head.addDeveloper")} onClick={() => openCreate("smartCityWorker")}><AssistantIcon name="userPlus" /></button>
+            <button className="head-side-link" type="button" title={t("head.addEmployee")} aria-label={t("head.addEmployee")} data-tooltip={t("head.addEmployee")} onClick={() => openCreate("governmentEmployee")}><AssistantIcon name="userPlus" /></button>
           </>}
         </nav>
-        <div className="head-sidebar-bottom">
-          <div className="head-sidebar-profile-menu">
-            <button className="head-profile-trigger" type="button" title={t("profile.myProfile")} aria-label={t("profile.myProfile")} aria-haspopup="menu" aria-expanded={isProfileMenuOpen} onClick={() => setIsProfileMenuOpen((current) => !current)}><span className="head-sidebar-initials">{userInitials}</span></button>
-            {isProfileMenuOpen && <div className="head-profile-menu" role="menu">
-              <div className="head-profile-menu-language" role="none"><LanguageSwitcher /></div>
-              {!isReadOnly && <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); setShowProfile(true); }}>{t("profile.edit")}</button>}
-              <button type="button" role="menuitem" onClick={() => { setIsProfileMenuOpen(false); onLogout(); }}>{t("common.signOut")}</button>
-            </div>}
-          </div>
-        </div>
       </aside>
       <div className="head-main">
       <section className={`staff-content head-content${activeView === "chat" ? " head-content-chat" : ""}${isPromptHistoryOpen ? " head-content-history-open" : ""}`}>

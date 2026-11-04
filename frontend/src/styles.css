@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap");
 
 :root {
   font-family: "DM Sans", sans-serif;
@@ -882,6 +882,10 @@ input:focus-visible {
   animation: message-enter 220ms ease-out both;
 }
 
+.message-user {
+  flex-direction: row-reverse;
+}
+
 @keyframes message-enter {
   from { opacity: 0; transform: translateY(7px); }
   to { opacity: 1; transform: translateY(0); }
@@ -965,10 +969,15 @@ input:focus-visible {
 }
 
 .message-user .message-body {
+  max-width: min(78%, 650px);
   padding: 12px 15px;
   border: 1px solid #e8dfce;
   border-radius: 4px 13px 13px;
   background: #fcf8ef;
+}
+
+.message-user .message-author {
+  text-align: right;
 }
 
 .conversation-composer {
